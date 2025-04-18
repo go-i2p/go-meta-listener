@@ -59,18 +59,29 @@ func Listen(name string, addr string, certdir string, hiddenTls bool) (net.Liste
 	if err != nil {
 		return nil, err
 	}
-	cfg := wileedot.Config{
-		Domain:         name,
-		AllowedDomains: []string{name},
-		CertDir:        certdir,
-		Email:          addr,
-	}
-	tlsListener, err := wileedot.New(cfg)
-	if err != nil {
-		return nil, err
-	}
-	if err := ml.AddListener("tls", tlsListener); err != nil {
-		return nil, err
+	if addr != "" {
+		cfg := wileedot.Config{
+			Domain:         name,
+			AllowedDomains: []string{name},
+			CertDir:        certdir,
+			Email:          addr,
+		}
+		tlsListener, err := wileedot.New(cfg)
+		if err != nil {
+			return nil, err
+		}
+		if err := ml.AddListener("tls", tlsListener); err != nil {
+			return nil, err
+		}
+	} else {
+		// Listen on plain HTTP
+		tlsListener, err := net.Listen("tcp", ":80")
+		if err != nil {
+			return nil, err
+		}
+		if err := ml.AddListener("http", tlsListener); err != nil {
+			return nil, err
+		}
 	}
 	if hiddenTls {
 		onionListener, err := ml.Onion.ListenTLS()
