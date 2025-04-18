@@ -3,6 +3,7 @@ package mirror
 import (
 	"log"
 	"net"
+	"strings"
 
 	"github.com/go-i2p/go-meta-listener"
 	"github.com/go-i2p/onramp"
@@ -33,6 +34,11 @@ func (m *Mirror) Close() error {
 
 func NewMirror(name string) (*Mirror, error) {
 	inner := meta.NewMetaListener()
+	name = strings.TrimSpace(name)
+	name = strings.ReplaceAll(name, " ", "")
+	if name == "" {
+		name = "mirror"
+	}
 	onion, err := onramp.NewOnion("metalistener-" + name)
 	if err != nil {
 		return nil, err
