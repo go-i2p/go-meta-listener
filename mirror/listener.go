@@ -55,7 +55,7 @@ func NewMirror(name string) (*Mirror, error) {
 	return ml, nil
 }
 
-func (ml *Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listener, error) {
+func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listener, error) {
 	if addr != "" {
 		cfg := wileedot.Config{
 			Domain:         name,
@@ -111,7 +111,7 @@ func (ml *Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listen
 			return nil, err
 		}
 	}
-	return ml, nil
+	return &ml, nil
 }
 
 // Listen creates a new Mirror instance and sets up listeners for TLS, Onion, and Garlic.
