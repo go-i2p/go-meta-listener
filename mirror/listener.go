@@ -56,22 +56,6 @@ func NewMirror(name string) (*Mirror, error) {
 }
 
 func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listener, error) {
-	if addr != "" {
-		cfg := wileedot.Config{
-			Domain:         name,
-			AllowedDomains: []string{name},
-			CertDir:        certdir,
-			Email:          addr,
-		}
-		tlsListener, err := wileedot.New(cfg)
-		if err != nil {
-			return nil, err
-		}
-		if err := ml.AddListener("tls", tlsListener); err != nil {
-			return nil, err
-		}
-		log.Println("TLS listener added https://", tlsListener.Addr())
-	}
 	// Listen on plain HTTP
 	tcpListener, err := net.Listen("tcp", "localhost:3000")
 	if err != nil {
@@ -115,6 +99,22 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 			return nil, err
 		}
 		log.Println("Garlic listener added http://", garlicListener.Addr())
+	}
+	if addr != "" {
+		cfg := wileedot.Config{
+			Domain:         name,
+			AllowedDomains: []string{name},
+			CertDir:        certdir,
+			Email:          addr,
+		}
+		tlsListener, err := wileedot.New(cfg)
+		if err != nil {
+			return nil, err
+		}
+		if err := ml.AddListener("tls", tlsListener); err != nil {
+			return nil, err
+		}
+		log.Println("TLS listener added https://", tlsListener.Addr())
 	}
 	return &ml, nil
 }
