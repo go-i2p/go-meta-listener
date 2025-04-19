@@ -13,8 +13,8 @@ import (
 
 type Mirror struct {
 	*meta.MetaListener
-	*onramp.Onion
-	*onramp.Garlic
+	Onion  *onramp.Onion
+	Garlic *onramp.Garlic
 }
 
 var _ net.Listener = &Mirror{}
@@ -55,16 +55,7 @@ func NewMirror(name string) (*Mirror, error) {
 	return ml, nil
 }
 
-// Listen creates a new Mirror instance and sets up listeners for TLS, Onion, and Garlic.
-// It returns the Mirror instance and any error encountered during setup.
-// name is the domain name used for the TLS listener, required for Let's Encrypt.
-// addr is the email address used for Let's Encrypt registration.
-// It is recommended to use a valid email address for production use.
-func Listen(name string, addr string, certdir string, hiddenTls bool) (net.Listener, error) {
-	ml, err := NewMirror(name)
-	if err != nil {
-		return nil, err
-	}
+func (ml *Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listener, error) {
 	if addr != "" {
 		cfg := wileedot.Config{
 			Domain:         name,
@@ -121,4 +112,17 @@ func Listen(name string, addr string, certdir string, hiddenTls bool) (net.Liste
 		}
 	}
 	return ml, nil
+}
+
+// Listen creates a new Mirror instance and sets up listeners for TLS, Onion, and Garlic.
+// It returns the Mirror instance and any error encountered during setup.
+// name is the domain name used for the TLS listener, required for Let's Encrypt.
+// addr is the email address used for Let's Encrypt registration.
+// It is recommended to use a valid email address for production use.
+func Listen(name, addr, certdir string, hiddenTls bool) (net.Listener, error) {
+	ml, err := NewMirror(name)
+	if err != nil {
+		return nil, err
+	}
+	return ml.Listen(name, addr, certdir, hiddenTls)
 }
