@@ -70,15 +70,14 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		if err := ml.AddListener("tls", tlsListener); err != nil {
 			return nil, err
 		}
-	} else {
-		// Listen on plain HTTP
-		tcpListener, err := net.Listen("tcp", "localhost:3000")
-		if err != nil {
-			return nil, err
-		}
-		if err := ml.AddListener("http", tcpListener); err != nil {
-			return nil, err
-		}
+	}
+	// Listen on plain HTTP
+	tcpListener, err := net.Listen("tcp", "localhost:3000")
+	if err != nil {
+		return nil, err
+	}
+	if err := ml.AddListener("http", tcpListener); err != nil {
+		return nil, err
 	}
 	if hiddenTls {
 		onionListener, err := ml.Onion.ListenTLS()
