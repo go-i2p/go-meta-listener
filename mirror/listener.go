@@ -72,7 +72,7 @@ func (ml *Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listen
 		}
 	} else {
 		// Listen on plain HTTP
-		tlsListener, err := net.Listen("tcp", ":80")
+		tlsListener, err := net.Listen("tcp", "localhost:3000")
 		if err != nil {
 			return nil, err
 		}
