@@ -70,6 +70,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		if err := ml.AddListener("tls", tlsListener); err != nil {
 			return nil, err
 		}
+		log.Println("TLS listener added https://", tlsListener.Addr())
 	}
 	// Listen on plain HTTP
 	tcpListener, err := net.Listen("tcp", "localhost:3000")
@@ -79,6 +80,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 	if err := ml.AddListener("http", tcpListener); err != nil {
 		return nil, err
 	}
+	log.Println("HTTP Local listener added http://", tcpListener.Addr())
 	if hiddenTls {
 		onionListener, err := ml.Onion.ListenTLS()
 		if err != nil {
@@ -87,6 +89,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		if err := ml.AddListener("onion", onionListener); err != nil {
 			return nil, err
 		}
+		log.Println("OnionTLS listener added https://", onionListener.Addr())
 		garlicListener, err := ml.Garlic.ListenTLS()
 		if err != nil {
 			return nil, err
@@ -94,6 +97,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		if err := ml.AddListener("garlic", garlicListener); err != nil {
 			return nil, err
 		}
+		log.Println("GarlicTLS listener added https://", garlicListener.Addr())
 	} else {
 		onionListener, err := ml.Onion.Listen()
 		if err != nil {
@@ -102,6 +106,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		if err := ml.AddListener("onion", onionListener); err != nil {
 			return nil, err
 		}
+		log.Println("Onion listener added http://", onionListener.Addr())
 		garlicListener, err := ml.Garlic.Listen()
 		if err != nil {
 			return nil, err
@@ -109,6 +114,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		if err := ml.AddListener("garlic", garlicListener); err != nil {
 			return nil, err
 		}
+		log.Println("Garlic listener added http://", garlicListener.Addr())
 	}
 	return &ml, nil
 }
