@@ -43,7 +43,7 @@ func NewMirror(name string) (*Mirror, error) {
 	if err != nil {
 		return nil, err
 	}
-	garlic, err := onramp.NewGarlic("metalistener-"+name, "127.0.0.1:7657", onramp.OPT_WIDE)
+	garlic, err := onramp.NewGarlic("metalistener-"+name, "127.0.0.1:7656", onramp.OPT_WIDE)
 	if err != nil {
 		return nil, err
 	}
