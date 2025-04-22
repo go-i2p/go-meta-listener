@@ -56,6 +56,8 @@ func NewMirror(name string) (*Mirror, error) {
 }
 
 func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listener, error) {
+	log.Println("Starting Mirror Listener")
+	log.Printf("Actual args: %s %s %s %t\n", name, addr, certdir, hiddenTls)
 	// Listen on plain HTTP
 	tcpListener, err := net.Listen("tcp", "localhost:3000")
 	if err != nil {
