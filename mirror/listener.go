@@ -1,6 +1,7 @@
 package mirror
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"strings"
@@ -79,23 +80,30 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		}
 		port = "3000"
 	}
+	if strings.HasSuffix(port, "22") {
+		log.Println("Port ends with 22, setting hiddenTls to true")
+		log.Println("This is a workaround for the fact that the default port for SSH is 22")
+		log.Println("This is so self-configuring SSH servers can be used without TLS, which would make connecting to them wierd")
+		hiddenTls = false
+	}
 	localAddr := net.JoinHostPort("127.0.0.1", port)
 	// Listen on plain HTTP
 	tcpListener, err := net.Listen("tcp", localAddr)
 	if err != nil {
 		return nil, err
 	}
-	if err := ml.AddListener("http", tcpListener); err != nil {
+	if err := ml.AddListener(port, tcpListener); err != nil {
 		return nil, err
 	}
 	log.Printf("HTTP Local listener added http://%s\n", tcpListener.Addr())
 	log.Println("Checking for existing onion and garlic listeners")
+	listenerId := fmt.Sprintf("metalistener-%s-%s", name, port)
 	// Check if onion and garlic listeners already exist
 	if ml.Onions[port] == nil {
 		// make a new onion listener
 		// and add it to the map
 		log.Println("Creating new onion listener")
-		onion, err := onramp.NewOnion("metalistener-" + name + port)
+		onion, err := onramp.NewOnion(listenerId)
 		if err != nil {
 			return nil, err
 		}
@@ -106,7 +114,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		// make a new garlic listener
 		// and add it to the map
 		log.Println("Creating new garlic listener")
-		garlic, err := onramp.NewGarlic("metalistener-"+name+port, "127.0.0.1:7656", onramp.OPT_WIDE)
+		garlic, err := onramp.NewGarlic(listenerId, "127.0.0.1:7656", onramp.OPT_WIDE)
 		if err != nil {
 			return nil, err
 		}
