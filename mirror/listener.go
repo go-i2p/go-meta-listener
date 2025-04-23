@@ -71,7 +71,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 	log.Println("Starting Mirror Listener")
 	log.Printf("Actual args: name: '%s' addr: '%s' certDir: '%s' hiddenTls: '%t'\n", name, addr, certdir, hiddenTls)
 	// get the port:
-	host, port, err := net.SplitHostPort(name)
+	_, port, err := net.SplitHostPort(name)
 	if err != nil {
 		// check if host is an IP address
 		if net.ParseIP(name) == nil {
@@ -79,9 +79,9 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		}
 		port = "3000"
 	}
-	listenAddr := net.JoinHostPort(host, port)
+	localAddr := net.JoinHostPort("127.0.0.1", port)
 	// Listen on plain HTTP
-	tcpListener, err := net.Listen("tcp", listenAddr)
+	tcpListener, err := net.Listen("tcp", localAddr)
 	if err != nil {
 		return nil, err
 	}
