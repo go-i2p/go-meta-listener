@@ -13,8 +13,8 @@ import (
 
 type Mirror struct {
 	*meta.MetaListener
-	Onion  *onramp.Onion
-	Garlic *onramp.Garlic
+	Onions  map[string]*onramp.Onion
+	Garlics map[string]*onramp.Garlic
 }
 
 var _ net.Listener = &Mirror{}
@@ -23,11 +23,15 @@ func (m *Mirror) Close() error {
 	if err := m.MetaListener.Close(); err != nil {
 		log.Println("Error closing MetaListener:", err)
 	}
-	if err := m.Onion.Close(); err != nil {
-		log.Println("Error closing Onion:", err)
+	for _, onion := range m.Onions {
+		if err := onion.Close(); err != nil {
+			log.Println("Error closing Onion:", err)
+		}
 	}
-	if err := m.Garlic.Close(); err != nil {
-		log.Println("Error closing Garlic:", err)
+	for _, garlic := range m.Garlics {
+		if err := garlic.Close(); err != nil {
+			log.Println("Error closing Garlic:", err)
+		}
 	}
 	return nil
 }
@@ -47,10 +51,18 @@ func NewMirror(name string) (*Mirror, error) {
 	if err != nil {
 		return nil, err
 	}
+	_, port, err := net.SplitHostPort(name)
+	if err != nil {
+		port = "3000"
+	}
+	onions := make(map[string]*onramp.Onion)
+	garlics := make(map[string]*onramp.Garlic)
+	onions[port] = onion
+	garlics[port] = garlic
 	ml := &Mirror{
 		MetaListener: inner,
-		Onion:        onion,
-		Garlic:       garlic,
+		Onions:       onions,
+		Garlics:      garlics,
 	}
 	return ml, nil
 }
@@ -58,56 +70,81 @@ func NewMirror(name string) (*Mirror, error) {
 func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listener, error) {
 	log.Println("Starting Mirror Listener")
 	log.Printf("Actual args: name: '%s' addr: '%s' certDir: '%s' hiddenTls: '%t'\n", name, addr, certdir, hiddenTls)
-	// determine if addr is an IP address and parse it
-	//host, port, err := net.SplitHostPort(addr)
-	//if err != nil {
-	//host = addr
-	//port = "3000"
-	//}
-	//addr = net.JoinHostPort(host, port)
+	// get the port:
+	host, port, err := net.SplitHostPort(name)
+	if err != nil {
+		// check if host is an IP address
+		if net.ParseIP(name) == nil {
+			host = "127.0.0.1"
+		}
+		port = "3000"
+	}
+	listenAddr := net.JoinHostPort(host, port)
 	// Listen on plain HTTP
-	tcpListener, err := net.Listen("tcp", "localhost:3000")
+	tcpListener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		return nil, err
 	}
 	if err := ml.AddListener("http", tcpListener); err != nil {
 		return nil, err
 	}
-	log.Println("HTTP Local listener added http://", tcpListener.Addr())
+	log.Printf("HTTP Local listener added http://%s\n", tcpListener.Addr())
+	log.Println("Checking for existing onion and garlic listeners")
+	// Check if onion and garlic listeners already exist
+	if ml.Onions[port] == nil {
+		// make a new onion listener
+		// and add it to the map
+		onion, err := onramp.NewOnion("metalistener-" + name + port)
+		if err != nil {
+			return nil, err
+		}
+		ml.Onions[port] = onion
+	}
+	if ml.Garlics[port] == nil {
+		// make a new garlic listener
+		// and add it to the map
+		garlic, err := onramp.NewGarlic("metalistener-"+name+port, "127.0.1:7656", onramp.OPT_WIDE)
+		if err != nil {
+			return nil, err
+		}
+		ml.Garlics[port] = garlic
+	}
 	if hiddenTls {
-		onionListener, err := ml.Onion.ListenTLS()
+		// make sure an onion and a garlic listener exist at ml.Onions[port] and ml.Garlics[port]
+		// and listen on them, check existence first
+		onionListener, err := ml.Onions[port].ListenTLS()
 		if err != nil {
 			return nil, err
 		}
 		if err := ml.AddListener("onion", onionListener); err != nil {
 			return nil, err
 		}
-		log.Println("OnionTLS listener added https://", onionListener.Addr())
-		garlicListener, err := ml.Garlic.ListenTLS()
+		log.Printf("OnionTLS listener added https://%s\n", onionListener.Addr())
+		garlicListener, err := ml.Garlics[port].ListenTLS()
 		if err != nil {
 			return nil, err
 		}
 		if err := ml.AddListener("garlic", garlicListener); err != nil {
 			return nil, err
 		}
-		log.Println("GarlicTLS listener added https://", garlicListener.Addr())
+		log.Printf("GarlicTLS listener added https://%s\n", garlicListener.Addr())
 	} else {
-		onionListener, err := ml.Onion.Listen()
+		onionListener, err := ml.Onions[port].Listen()
 		if err != nil {
 			return nil, err
 		}
 		if err := ml.AddListener("onion", onionListener); err != nil {
 			return nil, err
 		}
-		log.Println("Onion listener added http://", onionListener.Addr())
-		garlicListener, err := ml.Garlic.Listen()
+		log.Printf("Onion listener added http://%s\n", onionListener.Addr())
+		garlicListener, err := ml.Garlics[port].Listen()
 		if err != nil {
 			return nil, err
 		}
 		if err := ml.AddListener("garlic", garlicListener); err != nil {
 			return nil, err
 		}
-		log.Println("Garlic listener added http://", garlicListener.Addr())
+		log.Printf("Garlic listener added http://%s\n", garlicListener.Addr())
 	}
 	if addr != "" {
 		cfg := wileedot.Config{
@@ -123,7 +160,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		if err := ml.AddListener("tls", tlsListener); err != nil {
 			return nil, err
 		}
-		log.Println("TLS listener added https://", tlsListener.Addr())
+		log.Printf("TLS listener added https://%s\n", tlsListener.Addr())
 	}
 	return &ml, nil
 }
