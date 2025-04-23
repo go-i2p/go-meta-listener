@@ -106,7 +106,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		// make a new garlic listener
 		// and add it to the map
 		log.Println("Creating new garlic listener")
-		garlic, err := onramp.NewGarlic("metalistener-"+name+port, "127.0.1:7656", onramp.OPT_WIDE)
+		garlic, err := onramp.NewGarlic("metalistener-"+name+port, "127.0.0.1:7656", onramp.OPT_WIDE)
 		if err != nil {
 			return nil, err
 		}
