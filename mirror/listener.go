@@ -95,23 +95,23 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		// make a new onion listener
 		// and add it to the map
 		log.Println("Creating new onion listener")
-		onion, err := onramp.NewOnion("metalistener-" + name + port)
+		ml.Onions[port], err = onramp.NewOnion("metalistener-" + name + port)
 		if err != nil {
 			return nil, err
 		}
-		log.Panicln("Onion listener created")
-		ml.Onions[port] = onion
+		log.Println("Onion listener created")
+		// = onion
 	}
 	if ml.Garlics[port] == nil {
 		// make a new garlic listener
 		// and add it to the map
 		log.Println("Creating new garlic listener")
-		garlic, err := onramp.NewGarlic("metalistener-"+name+port, "127.0.0.1:7656", onramp.OPT_WIDE)
+		ml.Garlics[port], err = onramp.NewGarlic("metalistener-"+name+port, "127.0.0.1:7656", onramp.OPT_WIDE)
 		if err != nil {
 			return nil, err
 		}
-		log.Panicln("Garlic listener created")
-		ml.Garlics[port] = garlic
+		log.Println("Garlic listener created")
+		// = garlic
 	}
 	if hiddenTls {
 		// make sure an onion and a garlic listener exist at ml.Onions[port] and ml.Garlics[port]
