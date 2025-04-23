@@ -128,7 +128,8 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		if err != nil {
 			return nil, err
 		}
-		if err := ml.AddListener("onion", onionListener); err != nil {
+		oid := fmt.Sprintf("onion-%s", onionListener.Addr().String())
+		if err := ml.AddListener(oid, onionListener); err != nil {
 			return nil, err
 		}
 		log.Printf("OnionTLS listener added https://%s\n", onionListener.Addr())
@@ -136,7 +137,8 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		if err != nil {
 			return nil, err
 		}
-		if err := ml.AddListener("garlic", garlicListener); err != nil {
+		gid := fmt.Sprintf("garlic-%s", garlicListener.Addr().String())
+		if err := ml.AddListener(gid, garlicListener); err != nil {
 			return nil, err
 		}
 		log.Printf("GarlicTLS listener added https://%s\n", garlicListener.Addr())
@@ -145,7 +147,8 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		if err != nil {
 			return nil, err
 		}
-		if err := ml.AddListener("onion", onionListener); err != nil {
+		oid := fmt.Sprintf("onion-%s", onionListener.Addr().String())
+		if err := ml.AddListener(oid, onionListener); err != nil {
 			return nil, err
 		}
 		log.Printf("Onion listener added http://%s\n", onionListener.Addr())
@@ -153,7 +156,8 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		if err != nil {
 			return nil, err
 		}
-		if err := ml.AddListener("garlic", garlicListener); err != nil {
+		gid := fmt.Sprintf("garlic-%s", garlicListener.Addr().String())
+		if err := ml.AddListener(gid, garlicListener); err != nil {
 			return nil, err
 		}
 		log.Printf("Garlic listener added http://%s\n", garlicListener.Addr())
@@ -169,7 +173,8 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		if err != nil {
 			return nil, err
 		}
-		if err := ml.AddListener("tls", tlsListener); err != nil {
+		tid := fmt.Sprintf("tls-%s", tlsListener.Addr().String())
+		if err := ml.AddListener(tid, tlsListener); err != nil {
 			return nil, err
 		}
 		log.Printf("TLS listener added https://%s\n", tlsListener.Addr())
