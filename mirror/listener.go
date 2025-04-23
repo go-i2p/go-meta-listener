@@ -99,7 +99,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		if err != nil {
 			return nil, err
 		}
-		log.Println("Onion listener created")
+		log.Println("Onion listener created for port", port)
 		ml.Onions[port] = onion
 	}
 	if ml.Garlics[port] == nil {
@@ -110,7 +110,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		if err != nil {
 			return nil, err
 		}
-		log.Println("Garlic listener created")
+		log.Println("Garlic listener created for port", port)
 		ml.Garlics[port] = garlic
 	}
 	if hiddenTls {
