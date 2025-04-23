@@ -75,7 +75,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 	if err != nil {
 		// check if host is an IP address
 		if net.ParseIP(name) == nil {
-			host = "127.0.0.1"
+			// host = "127.0.0.1"
 		}
 		port = "3000"
 	}
