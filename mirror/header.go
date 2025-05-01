@@ -2,6 +2,7 @@ package mirror
 
 import (
 	"bufio"
+	"log"
 	"net"
 	"net/http"
 )
@@ -18,8 +19,10 @@ func AddHeaders(conn net.Conn, headers map[string]string) net.Conn {
 	if err != nil {
 		return conn
 	}
+	log.Println("Adding headers to connection:", req.Method, req.URL)
 	for key, value := range headers {
 		req.Header.Add(key, value)
+		log.Println("Added header:", key, value)
 	}
 	// write the request back to the connection
 	if err := req.Write(conn); err != nil {
