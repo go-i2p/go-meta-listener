@@ -2,6 +2,7 @@ package mirror
 
 import (
 	"bufio"
+	"crypto/tls"
 	"log"
 	"net"
 	"net/http"
@@ -43,7 +44,19 @@ func (ml *Mirror) Accept() (net.Conn, error) {
 	// Accept a connection from the listener
 	conn, err := ml.MetaListener.Accept()
 	if err != nil {
+		log.Println("Error accepting connection:", err)
 		return nil, err
+	}
+
+	// Check if the connection is a TLS connection
+	if tlsConn, ok := conn.(*tls.Conn); ok {
+		// If it is a TLS connection, perform the handshake
+		if err := tlsConn.Handshake(); err != nil {
+			log.Println("Error performing TLS handshake:", err)
+			return nil, err
+		}
+		// If the handshake is successful, get the underlying connection
+		conn = tlsConn.NetConn()
 	}
 
 	host := map[string]string{
@@ -51,6 +64,7 @@ func (ml *Mirror) Accept() (net.Conn, error) {
 		"X-Forwarded-For":   conn.RemoteAddr().String(),
 		"X-Forwarded-Proto": "http",
 	}
+
 	// Add headers to the connection
 	conn = AddHeaders(conn, host)
 
