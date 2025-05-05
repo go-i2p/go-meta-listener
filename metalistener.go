@@ -14,6 +14,8 @@ var (
 	ErrListenerClosed = errors.New("listener is closed")
 	// ErrNoListeners is returned when the meta listener has no active listeners
 	ErrNoListeners = errors.New("no active listeners")
+	// ErrInternalListenerFailure is returned when an internal listener fails
+	ErrInternalListenerFailure = errors.New("Internal listener error, shutting down metalistener for restart")
 )
 
 // MetaListener implements the net.Listener interface and manages multiple
@@ -127,12 +129,19 @@ func (ml *MetaListener) handleListener(id string, listener net.Listener) {
 			ml.mu.RUnlock()
 
 			if stillExists {
-				// Only report error if this listener hasn't been removed
+				// Create a combined error with both the standard message and original error details
+				combinedErr := fmt.Errorf("%w: listener %s error - %v",
+					ErrInternalListenerFailure, id, err)
+
+				// Send the combined error to notify Accept() calls
 				select {
-				case ml.errCh <- fmt.Errorf("listener %s error: %w", id, err):
+				case ml.errCh <- combinedErr:
 				default:
 					// Don't block if no one is reading errors
 				}
+
+				// Then close all listeners
+				go ml.Close()
 			}
 			return
 		}
