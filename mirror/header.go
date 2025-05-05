@@ -17,6 +17,8 @@ func AddHeaders(conn net.Conn, headers map[string]string) net.Conn {
 	// if the request is not an HTTP request, return the connection as is
 	req, err := http.ReadRequest(bufio.NewReader(conn))
 	if err != nil {
+		log.Println("Error reading request:", err)
+		// if the request is not an HTTP request, return the connection as is
 		return conn
 	}
 	log.Println("Adding headers to connection:", req.Method, req.URL)
@@ -26,9 +28,11 @@ func AddHeaders(conn net.Conn, headers map[string]string) net.Conn {
 	}
 	// write the request back to the connection
 	if err := req.Write(conn); err != nil {
+		log.Println("Error writing request:", err)
+		// if there is an error writing the request, return the connection as is
 		return conn
 	}
-	// return the connection with the headers added
+	// If all goes well, return the connection with the headers added
 	return conn
 }
 
