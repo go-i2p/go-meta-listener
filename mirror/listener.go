@@ -21,37 +21,49 @@ type Mirror struct {
 var _ net.Listener = &Mirror{}
 
 func (m *Mirror) Close() error {
+	log.Println("Closing Mirror")
 	if err := m.MetaListener.Close(); err != nil {
 		log.Println("Error closing MetaListener:", err)
+	} else {
+		log.Println("MetaListener closed")
 	}
 	for _, onion := range m.Onions {
 		if err := onion.Close(); err != nil {
 			log.Println("Error closing Onion:", err)
+		} else {
+			log.Println("Onion closed")
 		}
 	}
 	for _, garlic := range m.Garlics {
 		if err := garlic.Close(); err != nil {
 			log.Println("Error closing Garlic:", err)
+		} else {
+			log.Println("Garlic closed")
 		}
 	}
+	log.Println("Mirror closed")
 	return nil
 }
 
 func NewMirror(name string) (*Mirror, error) {
+	log.Println("Creating new Mirror")
 	inner := meta.NewMetaListener()
 	name = strings.TrimSpace(name)
 	name = strings.ReplaceAll(name, " ", "")
 	if name == "" {
 		name = "mirror"
 	}
+	log.Printf("Creating new MetaListener with name: '%s'\n", name)
 	onion, err := onramp.NewOnion("metalistener-" + name)
 	if err != nil {
 		return nil, err
 	}
+	log.Println("Created new Onion manager")
 	garlic, err := onramp.NewGarlic("metalistener-"+name, "127.0.0.1:7656", onramp.OPT_WIDE)
 	if err != nil {
 		return nil, err
 	}
+	log.Println("Created new Garlic manager")
 	_, port, err := net.SplitHostPort(name)
 	if err != nil {
 		port = "3000"
@@ -65,6 +77,7 @@ func NewMirror(name string) (*Mirror, error) {
 		Onions:       onions,
 		Garlics:      garlics,
 	}
+	log.Printf("Mirror created with name: '%s' and port: '%s', '%s'\n", name, port, ml.MetaListener.Addr().String())
 	return ml, nil
 }
 
@@ -98,6 +111,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 	log.Printf("HTTP Local listener added http://%s\n", tcpListener.Addr())
 	log.Println("Checking for existing onion and garlic listeners")
 	listenerId := fmt.Sprintf("metalistener-%s-%s", name, port)
+	log.Println("Listener ID:", listenerId)
 	// Check if onion and garlic listeners already exist
 	if ml.Onions[port] == nil {
 		// make a new onion listener
