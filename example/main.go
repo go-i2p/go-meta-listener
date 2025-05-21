@@ -27,7 +27,7 @@ func main() {
 	if err := metaListener.AddListener("tcp", tcpListener); err != nil {
 		log.Fatalf("Failed to add TCP listener: %v", err)
 	}
-	log.Println("Added TCP listener on 127.0.0.1:8080")
+	log.Println("Added TCP listener on 127.0.0.1:8082")
 
 	// Create and add a Unix socket listener (on Unix systems)
 	socketPath := "/tmp/example.sock"
@@ -42,6 +42,7 @@ func main() {
 			log.Println("Added Unix socket listener on", socketPath)
 		}
 	}
+	log.Println("Starting http server...")
 
 	// Create a simple HTTP server using the meta listener
 	server := &http.Server{
@@ -49,6 +50,7 @@ func main() {
 			fmt.Fprintf(w, "Hello from MetaListener! You connected via: %s\n", r.Proto)
 		}),
 	}
+	log.Println("Server is ready to accept connections...")
 
 	// Handle server shutdown gracefully
 	stop := make(chan os.Signal, 1)
