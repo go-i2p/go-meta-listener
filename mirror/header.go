@@ -60,7 +60,7 @@ func (ml *Mirror) Accept() (net.Conn, error) {
 	}
 
 	host := map[string]string{
-		"Host":              ml.MetaListener.Addr().String(),
+		"Host":              conn.LocalAddr().String(),
 		"X-Forwarded-For":   conn.RemoteAddr().String(),
 		"X-Forwarded-Proto": "http",
 	}

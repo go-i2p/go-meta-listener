@@ -14,13 +14,15 @@ import (
 func main() {
 	host := flag.String("host", "localhost", "Host to forward connections to")
 	port := flag.Int("port", 8080, "Port to forward connections to")
+	listenPort := flag.Int("listen-port", 3002, "Port to listen for incoming connections")
 	domain := flag.String("domain", "i2pgit.org", "Domain name for TLS listener")
-	email := flag.String("email", "example@example.com", "Email address for Let's Encrypt registration")
+	email := flag.String("email", "", "Email address for Let's Encrypt registration")
 	certDir := flag.String("certdir", "./certs", "Directory for storing certificates")
 	hiddenTls := flag.Bool("hidden-tls", false, "Enable hidden TLS")
 	flag.Parse()
+	addr := net.JoinHostPort(*domain, fmt.Sprintf("%d", *listenPort))
 	// Create a new meta listener
-	metaListener, err := mirror.Listen(*domain, *email, *certDir, *hiddenTls)
+	metaListener, err := mirror.Listen(addr, *email, *certDir, *hiddenTls)
 	if err != nil {
 		panic(err)
 	}

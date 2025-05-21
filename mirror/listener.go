@@ -81,7 +81,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		port = "3000"
 	}
 	if strings.HasSuffix(port, "22") {
-		log.Println("Port ends with 22, setting hiddenTls to true")
+		log.Println("Port ends with 22, setting hiddenTls to false")
 		log.Println("This is a workaround for the fact that the default port for SSH is 22")
 		log.Println("This is so self-configuring SSH servers can be used without TLS, which would make connecting to them wierd")
 		hiddenTls = false
