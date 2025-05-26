@@ -58,7 +58,12 @@ func Listen(network, address string) (net.Listener, error) {
 
 	// Configure the underlying socket with production defaults
 	if err := configureSocket(tcpListener); err != nil {
-		listener.Close()
+		// Ensure proper cleanup even if socket is in inconsistent state
+		if closeErr := listener.Close(); closeErr != nil {
+			// Log the close error but return the original configuration error
+			// since that's the primary failure point
+			return nil, fmt.Errorf("tcp.Listen: failed to configure socket options for %s %s (%w), and failed to close listener (%v)", network, address, err, closeErr)
+		}
 		return nil, fmt.Errorf("tcp.Listen: failed to configure socket options for %s %s: %w", network, address, err)
 	}
 
