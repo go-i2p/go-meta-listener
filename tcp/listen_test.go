@@ -258,3 +258,38 @@ func BenchmarkListen(b *testing.B) {
 		listener.Close()
 	}
 }
+
+func TestConfigureSocket_NoResourceLeak(t *testing.T) {
+	// Create a listener
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatalf("Failed to create base listener: %v", err)
+	}
+	defer listener.Close()
+
+	tcpListener := listener.(*net.TCPListener)
+
+	// Configure the socket - this should not invalidate the listener
+	err = configureSocket(tcpListener)
+	if err != nil {
+		t.Fatalf("Socket configuration failed: %v", err)
+	}
+
+	// Verify the listener is still usable by accepting a connection
+	addr := listener.Addr().String()
+
+	// Test connection in a goroutine
+	go func() {
+		conn, err := net.Dial("tcp", addr)
+		if err == nil {
+			conn.Close()
+		}
+	}()
+
+	// This should succeed if the listener wasn't invalidated
+	conn, err := listener.Accept()
+	if err != nil {
+		t.Fatalf("Listener became unusable after configuration: %v", err)
+	}
+	conn.Close()
+}

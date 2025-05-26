@@ -35,7 +35,7 @@ const (
 func Listen(network, address string) (net.Listener, error) {
 	// Validate network parameter
 	if !isValidNetwork(network) {
-		return nil, fmt.Errorf("tcp.Listen: invalid network type %q, must be tcp, tcp4, or tcp6", network)
+		return nil, fmt.Errorf("tcp.Listen: invalid network type %q for addr %s, must be tcp, tcp4, or tcp6", network, address)
 	}
 
 	// Validate address format by attempting to resolve
@@ -77,33 +77,45 @@ func isValidNetwork(network string) bool {
 
 // configureSocket applies production-ready socket options to the TCP listener
 func configureSocket(listener *net.TCPListener) error {
-	// Get the underlying file descriptor for socket configuration
-	file, err := listener.File()
+	// Use SyscallConn to access the raw socket without duplicating the file descriptor
+	rawConn, err := listener.SyscallConn()
 	if err != nil {
-		return fmt.Errorf("failed to get listener file descriptor: %w", err)
-	}
-	defer file.Close()
-
-	fd := int(file.Fd())
-
-	// Enable SO_REUSEADDR to prevent "address already in use" errors
-	if err := syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
-		return fmt.Errorf("failed to set SO_REUSEADDR: %w", err)
+		return fmt.Errorf("failed to get listener syscall connection: %w", err)
 	}
 
-	// Set receive buffer size for optimal throughput
-	if err := syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, bufferSize); err != nil {
-		return fmt.Errorf("failed to set receive buffer size: %w", err)
-	}
+	// Apply socket options using the raw connection
+	var sockErr error
+	err = rawConn.Control(func(fd uintptr) {
+		// Enable SO_REUSEADDR to prevent "address already in use" errors
+		if err := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
+			sockErr = fmt.Errorf("failed to set SO_REUSEADDR: %w", err)
+			return
+		}
 
-	// Set send buffer size for optimal throughput
-	if err := syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_SNDBUF, bufferSize); err != nil {
-		return fmt.Errorf("failed to set send buffer size: %w", err)
-	}
+		// Set receive buffer size for optimal throughput
+		if err := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, bufferSize); err != nil {
+			sockErr = fmt.Errorf("failed to set receive buffer size: %w", err)
+			return
+		}
 
-	// Enable TCP_NODELAY to minimize latency (disable Nagle's algorithm)
-	if err := syscall.SetsockoptInt(fd, syscall.IPPROTO_TCP, syscall.TCP_NODELAY, 1); err != nil {
-		return fmt.Errorf("failed to set TCP_NODELAY: %w", err)
+		// Set send buffer size for optimal throughput
+		if err := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_SNDBUF, bufferSize); err != nil {
+			sockErr = fmt.Errorf("failed to set send buffer size: %w", err)
+			return
+		}
+
+		// Enable TCP_NODELAY to minimize latency (disable Nagle's algorithm)
+		if err := syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_NODELAY, 1); err != nil {
+			sockErr = fmt.Errorf("failed to set TCP_NODELAY: %w", err)
+			return
+		}
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to access socket for configuration: %w", err)
+	}
+	if sockErr != nil {
+		return sockErr
 	}
 
 	return nil
