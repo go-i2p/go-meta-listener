@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-i2p/go-meta-listener"
+	"github.com/go-i2p/go-meta-listener/tcp"
 	"github.com/go-i2p/onramp"
 
 	wileedot "github.com/opd-ai/wileedot"
@@ -100,12 +101,17 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		hiddenTls = false
 	}
 	localAddr := net.JoinHostPort("127.0.0.1", port)
-	tcpListener, err := net.Listen("tcp", localAddr)
+	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create TCP listener on %s: %w", localAddr, err)
 	}
+	tcpListener := listener.(*net.TCPListener)
+	hardenedListener, err := tcp.Config(*tcpListener)
+	if err != nil {
+		log.Fatal(err)
+	}
 	log.Printf("TCP listener created on %s\n", localAddr)
-	if err := ml.AddListener(port, tcpListener); err != nil {
+	if err := ml.AddListener(port, hardenedListener); err != nil {
 		return nil, err
 	}
 	log.Printf("HTTP Local listener added http://%s\n", tcpListener.Addr())
