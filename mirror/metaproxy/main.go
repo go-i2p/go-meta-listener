@@ -20,9 +20,11 @@ func main() {
 	certDir := flag.String("certdir", "./certs", "Directory for storing certificates")
 	hiddenTls := flag.Bool("hidden-tls", false, "Enable hidden TLS")
 	flag.Parse()
+	mirror.CERT_DIR = *certDir
+	mirror.HIDDEN_TLS = *hiddenTls
 	addr := net.JoinHostPort(*domain, fmt.Sprintf("%d", *listenPort))
 	// Create a new meta listener
-	metaListener, err := mirror.Listen(addr, *email, *certDir, *hiddenTls)
+	metaListener, err := mirror.Listen(addr, *email)
 	if err != nil {
 		panic(err)
 	}

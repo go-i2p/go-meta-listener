@@ -87,9 +87,9 @@ func NewMirror(name string) (*Mirror, error) {
 	return ml, nil
 }
 
-func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listener, error) {
+func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 	log.Println("Starting Mirror Listener")
-	log.Printf("Actual args: name: '%s' addr: '%s' certDir: '%s' hiddenTls: '%t'\n", name, addr, certdir, hiddenTls)
+	log.Printf("Actual args: name: '%s' addr: '%s' certDir: '%s' hiddenTls: '%t'\n", name, addr, certDir(), hiddenTls)
 	// get the port:
 	_, port, err := net.SplitHostPort(name)
 	if err != nil {
@@ -99,12 +99,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		}
 		port = "3000"
 	}
-	if strings.HasSuffix(port, "22") {
-		log.Println("Port ends with 22, setting hiddenTls to false")
-		log.Println("This is a workaround for the fact that the default port for SSH is 22")
-		log.Println("This is so self-configuring SSH servers can be used without TLS, which would make connecting to them wierd")
-		hiddenTls = false
-	}
+	hiddenTls := hiddenTls(port)
 	localAddr := net.JoinHostPort("127.0.0.1", port)
 	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
@@ -199,7 +194,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		cfg := wileedot.Config{
 			Domain:         name,
 			AllowedDomains: []string{name},
-			CertDir:        certdir,
+			CertDir:        certDir(),
 			Email:          addr,
 		}
 		tlsListener, err := wileedot.New(cfg)
@@ -220,12 +215,12 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 // name is the domain name used for the TLS listener, required for Let's Encrypt.
 // addr is the email address used for Let's Encrypt registration.
 // It is recommended to use a valid email address for production use.
-func Listen(name, addr, certdir string, hiddenTls bool) (net.Listener, error) {
+func Listen(name, addr string) (net.Listener, error) {
 	ml, err := NewMirror(name)
 	if err != nil {
 		return nil, err
 	}
-	return ml.Listen(name, addr, certdir, hiddenTls)
+	return ml.Listen(name, addr)
 }
 
 func DisableTor() bool {
@@ -244,4 +239,43 @@ func DisableI2P() bool {
 		return true
 	}
 	return false
+}
+
+// HIDDEN_TLS is a global variable that determines whether to use hidden TLS.
+// It is set to true by default, but can be overridden by the hiddenTls function.
+// If the port ends with "22", it will return false, indicating that hidden TLS should not be used.
+// This is a useful workaround for SSH connections, which commonly use port 22.
+var HIDDEN_TLS = true
+
+func hiddenTls(port string) bool {
+	// Check if the port is 22, which is commonly used for SSH
+	if strings.HasSuffix(port, "22") {
+		log.Println("Port ends with 22, setting hiddenTls to false")
+		return false
+	}
+	// Default to true for other ports
+	return HIDDEN_TLS
+}
+
+var default_CERT_DIR = "./certs"
+
+// CERT_DIR is the directory where certificates are stored.
+// It can be overridden by setting the CERT_DIR environment variable.
+// if CERT_DIR is not set, it defaults to "./certs".
+// if CERT_DIR is set from Go code, it will always return the value set in the code.
+// if CERT_DIR is set from the environment, it will return the value from the environment unless overridden by Go code.
+var CERT_DIR = default_CERT_DIR
+
+func certDir() string {
+	// Default certificate directory
+	certDir := CERT_DIR
+	if certDir != default_CERT_DIR {
+		// if the default directory is not used, always return it
+		return certDir
+	}
+	if dir := os.Getenv("CERT_DIR"); dir != "" {
+		certDir = dir
+	}
+	log.Printf("Using certificate directory: %s\n", certDir)
+	return certDir
 }
