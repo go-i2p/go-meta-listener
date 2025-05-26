@@ -2,7 +2,6 @@ package mirror
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"strconv"

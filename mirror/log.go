@@ -1,4 +1,4 @@
-package meta
+package mirror
 
 import (
 	"github.com/go-i2p/logger"

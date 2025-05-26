@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"time"
