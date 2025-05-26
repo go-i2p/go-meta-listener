@@ -7,13 +7,15 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"github.com/samber/oops"
 )
 
 var (
 	// ErrListenerClosed is returned when attempting to accept on a closed listener
-	ErrListenerClosed = errors.New("listener is closed")
+	ErrListenerClosed = oops.Errorf("listener is closed")
 	// ErrNoListeners is returned when the meta listener has no active listeners
-	ErrNoListeners = errors.New("no active listeners")
+	ErrNoListeners = oops.Errorf("no active listeners")
 )
 
 // MetaListener implements the net.Listener interface and manages multiple
