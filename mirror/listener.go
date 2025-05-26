@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"strings"
 
 	"github.com/go-i2p/go-meta-listener"
@@ -113,7 +114,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 	listenerId := fmt.Sprintf("metalistener-%s-%s", name, port)
 	log.Println("Listener ID:", listenerId)
 	// Check if onion and garlic listeners already exist
-	if ml.Onions[port] == nil {
+	if ml.Onions[port] == nil && !DisableTor() {
 		// make a new onion listener
 		// and add it to the map
 		log.Println("Creating new onion listener")
@@ -124,7 +125,7 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		log.Println("Onion listener created for port", port)
 		ml.Onions[port] = onion
 	}
-	if ml.Garlics[port] == nil {
+	if ml.Garlics[port] == nil && !DisableI2P() {
 		// make a new garlic listener
 		// and add it to the map
 		log.Println("Creating new garlic listener")
@@ -138,43 +139,51 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 	if hiddenTls {
 		// make sure an onion and a garlic listener exist at ml.Onions[port] and ml.Garlics[port]
 		// and listen on them, check existence first
-		onionListener, err := ml.Onions[port].ListenTLS()
-		if err != nil {
-			return nil, err
+		if !DisableTor() {
+			onionListener, err := ml.Onions[port].ListenTLS()
+			if err != nil {
+				return nil, err
+			}
+			oid := fmt.Sprintf("onion-%s", onionListener.Addr().String())
+			if err := ml.AddListener(oid, onionListener); err != nil {
+				return nil, err
+			}
+			log.Printf("OnionTLS listener added https://%s\n", onionListener.Addr())
 		}
-		oid := fmt.Sprintf("onion-%s", onionListener.Addr().String())
-		if err := ml.AddListener(oid, onionListener); err != nil {
-			return nil, err
+		if !DisableI2P() {
+			garlicListener, err := ml.Garlics[port].ListenTLS()
+			if err != nil {
+				return nil, err
+			}
+			gid := fmt.Sprintf("garlic-%s", garlicListener.Addr().String())
+			if err := ml.AddListener(gid, garlicListener); err != nil {
+				return nil, err
+			}
+			log.Printf("GarlicTLS listener added https://%s\n", garlicListener.Addr())
 		}
-		log.Printf("OnionTLS listener added https://%s\n", onionListener.Addr())
-		garlicListener, err := ml.Garlics[port].ListenTLS()
-		if err != nil {
-			return nil, err
-		}
-		gid := fmt.Sprintf("garlic-%s", garlicListener.Addr().String())
-		if err := ml.AddListener(gid, garlicListener); err != nil {
-			return nil, err
-		}
-		log.Printf("GarlicTLS listener added https://%s\n", garlicListener.Addr())
 	} else {
-		onionListener, err := ml.Onions[port].Listen()
-		if err != nil {
-			return nil, err
+		if !DisableTor() {
+			onionListener, err := ml.Onions[port].Listen()
+			if err != nil {
+				return nil, err
+			}
+			oid := fmt.Sprintf("onion-%s", onionListener.Addr().String())
+			if err := ml.AddListener(oid, onionListener); err != nil {
+				return nil, err
+			}
+			log.Printf("Onion listener added http://%s\n", onionListener.Addr())
 		}
-		oid := fmt.Sprintf("onion-%s", onionListener.Addr().String())
-		if err := ml.AddListener(oid, onionListener); err != nil {
-			return nil, err
+		if !DisableI2P() {
+			garlicListener, err := ml.Garlics[port].Listen()
+			if err != nil {
+				return nil, err
+			}
+			gid := fmt.Sprintf("garlic-%s", garlicListener.Addr().String())
+			if err := ml.AddListener(gid, garlicListener); err != nil {
+				return nil, err
+			}
+			log.Printf("Garlic listener added http://%s\n", garlicListener.Addr())
 		}
-		log.Printf("Onion listener added http://%s\n", onionListener.Addr())
-		garlicListener, err := ml.Garlics[port].Listen()
-		if err != nil {
-			return nil, err
-		}
-		gid := fmt.Sprintf("garlic-%s", garlicListener.Addr().String())
-		if err := ml.AddListener(gid, garlicListener); err != nil {
-			return nil, err
-		}
-		log.Printf("Garlic listener added http://%s\n", garlicListener.Addr())
 	}
 	if addr != "" {
 		cfg := wileedot.Config{
@@ -207,4 +216,22 @@ func Listen(name, addr, certdir string, hiddenTls bool) (net.Listener, error) {
 		return nil, err
 	}
 	return ml.Listen(name, addr, certdir, hiddenTls)
+}
+
+func DisableTor() bool {
+	val := os.Getenv("DISABLE_TOR")
+	if val == "1" || strings.ToLower(val) == "true" {
+		log.Println("Tor is disabled by environment variable DISABLE_TOR")
+		return true
+	}
+	return false
+}
+
+func DisableI2P() bool {
+	val := os.Getenv("DISABLE_I2P")
+	if val == "1" || strings.ToLower(val) == "true" {
+		log.Println("I2P is disabled by environment variable DISABLE_I2P")
+		return true
+	}
+	return false
 }
