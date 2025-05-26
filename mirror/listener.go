@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/go-i2p/go-meta-listener"
@@ -101,11 +102,18 @@ func (ml Mirror) Listen(name, addr, certdir string, hiddenTls bool) (net.Listene
 		hiddenTls = false
 	}
 	localAddr := net.JoinHostPort("127.0.0.1", port)
+	portInt, _ := strconv.Atoi(port)
 	// Listen on plain HTTP
-	tcpListener, err := net.Listen("tcp", localAddr)
+	tcpAddr := &net.TCPAddr{
+		IP:   net.ParseIP(localAddr),
+		Port: portInt, // let the OS choose a free port
+		Zone: "",
+	}
+	tcpListener, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
 		return nil, err
 	}
+	//tcpListener.SetDeadline()
 	if err := ml.AddListener(port, tcpListener); err != nil {
 		return nil, err
 	}
