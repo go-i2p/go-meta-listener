@@ -97,6 +97,19 @@ func configureSocket(listener *net.TCPListener) error {
 			return
 		}
 
+		// Enable SO_KEEPALIVE for connection health monitoring
+		if err := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 1); err != nil {
+			sockErr = fmt.Errorf("failed to set SO_KEEPALIVE: %w", err)
+			return
+		}
+
+		// Set keep-alive probe interval (Linux-specific, gracefully degrade on other platforms)
+		keepAliveSeconds := int(keepAliveInterval.Seconds())
+		if err := syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_KEEPINTVL, keepAliveSeconds); err != nil {
+			// TCP_KEEPINTVL may not be available on all platforms, continue without failing
+			// The SO_KEEPALIVE setting above will still provide basic keep-alive functionality
+		}
+
 		// Set receive buffer size for optimal throughput
 		if err := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, bufferSize); err != nil {
 			sockErr = fmt.Errorf("failed to set receive buffer size: %w", err)
