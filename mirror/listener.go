@@ -55,24 +55,29 @@ func NewMirror(name string) (*Mirror, error) {
 		name = "mirror"
 	}
 	log.Printf("Creating new MetaListener with name: '%s'\n", name)
-	onion, err := onramp.NewOnion("metalistener-" + name)
-	if err != nil {
-		return nil, err
-	}
-	log.Println("Created new Onion manager")
-	garlic, err := onramp.NewGarlic("metalistener-"+name, "127.0.0.1:7656", onramp.OPT_WIDE)
-	if err != nil {
-		return nil, err
-	}
-	log.Println("Created new Garlic manager")
 	_, port, err := net.SplitHostPort(name)
 	if err != nil {
 		port = "3000"
 	}
 	onions := make(map[string]*onramp.Onion)
+	if !DisableTor() {
+		onion, err := onramp.NewOnion("metalistener-" + name)
+		if err != nil {
+			return nil, err
+		}
+		log.Println("Created new Onion manager")
+		onions[port] = onion
+	}
 	garlics := make(map[string]*onramp.Garlic)
-	onions[port] = onion
-	garlics[port] = garlic
+	if !DisableI2P() {
+		garlic, err := onramp.NewGarlic("metalistener-"+name, "127.0.0.1:7656", onramp.OPT_WIDE)
+		if err != nil {
+			return nil, err
+		}
+		log.Println("Created new Garlic manager")
+		garlics[port] = garlic
+	}
+
 	ml := &Mirror{
 		MetaListener: inner,
 		Onions:       onions,

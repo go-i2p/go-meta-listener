@@ -84,7 +84,7 @@ func (ml *Mirror) Accept() (net.Conn, error) {
 			return nil, err
 		}
 		// If the handshake is successful, get the underlying connection
-		//conn = tlsConn.NetConn()
+		// conn = tlsConn.NetConn()
 	}
 
 	host := map[string]string{
