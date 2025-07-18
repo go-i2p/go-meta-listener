@@ -44,6 +44,9 @@ func (ml *MetaListener) Close() error {
 	ml.mu.Lock()
 	log.Printf("Closing MetaListener with %d listeners", len(ml.listeners))
 
+	// Signal all goroutines to stop first, before clearing listeners map
+	close(ml.closeCh)
+
 	// Close all listeners first to stop accepting new connections
 	var errs []error
 	for id, listener := range ml.listeners {
@@ -57,9 +60,6 @@ func (ml *MetaListener) Close() error {
 	ml.listeners = make(map[string]net.Listener)
 
 	ml.mu.Unlock()
-
-	// Signal all goroutines to stop immediately
-	close(ml.closeCh)
 
 	// Allow a brief grace period for handlers to finish processing current connections
 	gracePeriod := 100 * time.Millisecond
