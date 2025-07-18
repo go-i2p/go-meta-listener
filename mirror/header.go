@@ -3,6 +3,7 @@ package mirror
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/tls"
 	"io"
 	"net"
@@ -34,12 +35,45 @@ func AddHeaders(conn net.Conn, headers map[string]string) net.Conn {
 	// Create a pipe to connect our modified request with the output
 	pr, pw := io.Pipe()
 
-	// Write the modified request to one end of the pipe
+	// Write the modified request to one end of the pipe with timeout protection
 	go func() {
-		req.Write(pw)
-		// Then copy the rest of the original connection
-		io.Copy(pw, conn)
-		pw.Close()
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("PANIC in header processing goroutine: %v", r)
+			}
+			pw.Close()
+		}()
+
+		// Set a deadline for the entire operation to prevent indefinite blocking
+		if deadline, ok := conn.(interface{ SetDeadline(time.Time) error }); ok {
+			deadline.SetDeadline(time.Now().Add(30 * time.Second))
+		}
+
+		// Write the modified request
+		if err := req.Write(pw); err != nil {
+			log.Printf("Error writing modified request: %v", err)
+			return
+		}
+
+		// Copy remaining data with timeout protection
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		done := make(chan error, 1)
+		go func() {
+			_, err := io.Copy(pw, conn)
+			done <- err
+		}()
+
+		select {
+		case err := <-done:
+			if err != nil {
+				log.Printf("Error copying connection data: %v", err)
+			}
+		case <-ctx.Done():
+			log.Printf("Header processing goroutine timed out after 30 seconds")
+			// Connection will be closed by defer pw.Close()
+		}
 	}()
 
 	// Return a ReadWriter that reads from our pipe and writes to the original connection
