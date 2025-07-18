@@ -33,6 +33,8 @@ type MetaListener struct {
 	removeListenerCh chan string
 	// isClosed indicates whether the meta listener has been closed (atomic)
 	isClosed int64
+	// isShuttingDown indicates whether WaitForShutdown has been called (atomic)
+	isShuttingDown int64
 	// mu protects concurrent access to the listener's state
 	mu sync.RWMutex
 }
@@ -73,13 +75,18 @@ func (ml *MetaListener) AddListener(id string, listener net.Listener) error {
 		return ErrListenerClosed
 	}
 
+	// Check if we're in shutdown mode (WaitForShutdown has been called)
+	if atomic.LoadInt64(&ml.isShuttingDown) != 0 {
+		return fmt.Errorf("cannot add listener during shutdown")
+	}
+
 	if _, exists := ml.listeners[id]; exists {
 		return fmt.Errorf("listener with ID '%s' already exists", id)
 	}
 
 	ml.listeners[id] = listener
 
-	// Start a goroutine to handle connections from this listener
+	// Add to WaitGroup immediately before starting goroutine to prevent race
 	ml.listenerWg.Add(1)
 	go ml.handleListener(id, listener)
 
@@ -128,6 +135,9 @@ func (ml *MetaListener) Count() int {
 // WaitForShutdown blocks until all listener goroutines have exited.
 // This is useful for ensuring clean shutdown in server applications.
 func (ml *MetaListener) WaitForShutdown(ctx context.Context) error {
+	// Set shutdown flag to prevent new listeners from being added
+	atomic.StoreInt64(&ml.isShuttingDown, 1)
+
 	done := make(chan struct{})
 
 	go func() {

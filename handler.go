@@ -10,6 +10,10 @@ import (
 // and forwards accepted connections to the connCh channel.
 func (ml *MetaListener) handleListener(id string, listener net.Listener) {
 	defer func() {
+		// Recover from any panic to ensure WaitGroup.Done() is always called
+		if r := recover(); r != nil {
+			log.Printf("PANIC in listener goroutine for %s: %v", id, r)
+		}
 		log.Printf("Listener goroutine for %s exiting", id)
 		ml.listenerWg.Done()
 	}()

@@ -25,3 +25,5 @@ go.work.sum
 .env
 /*keys
 /data-dir*
+mp
+metaproxy

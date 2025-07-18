@@ -1,8 +1,11 @@
 package meta
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -235,3 +238,114 @@ func TestShutdownRaceCondition(t *testing.T) {
 		t.Errorf("Expected 0 listeners after close, got %d", ml.Count())
 	}
 }
+
+// TestWaitGroupSynchronization tests that WaitGroup is properly synchronized
+func TestWaitGroupSynchronization(t *testing.T) {
+	ml := NewMetaListener()
+	defer ml.Close()
+
+	// Test 1: Verify panic recovery in handleListener doesn't break WaitGroup
+	listener := newMockListener("127.0.0.1:8080")
+
+	// Add a listener
+	err := ml.AddListener("panic-test", listener)
+	if err != nil {
+		t.Fatalf("Failed to add listener: %v", err)
+	}
+
+	// Test 2: Verify we can't add listeners during shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	// Start WaitForShutdown in background
+	go func() {
+		ml.WaitForShutdown(ctx)
+	}()
+
+	// Give WaitForShutdown a moment to set the shutdown flag
+	time.Sleep(10 * time.Millisecond)
+
+	// Try to add another listener - should fail
+	listener2 := newMockListener("127.0.0.1:8081")
+	err = ml.AddListener("shutdown-test", listener2)
+	if err == nil {
+		t.Error("Expected error when adding listener during shutdown, got nil")
+	}
+	if !strings.Contains(err.Error(), "shutdown") {
+		t.Errorf("Expected shutdown error, got: %v", err)
+	}
+
+	// Close the MetaListener to finish the test cleanly
+	ml.Close()
+}
+
+// TestWaitGroupPanicRecovery tests that panics in handleListener are recovered
+func TestWaitGroupPanicRecovery(t *testing.T) {
+	ml := NewMetaListener()
+	defer ml.Close()
+
+	// Create a custom listener that will cause a panic
+	panicListener := &panicMockListener{
+		mockListener: newMockListener("127.0.0.1:8080"),
+	}
+
+	// Add the panic-inducing listener
+	err := ml.AddListener("panic-test", panicListener)
+	if err != nil {
+		t.Fatalf("Failed to add listener: %v", err)
+	}
+
+	// Trigger the panic by sending a connection
+	conn := &mockConn{}
+	panicListener.connCh <- conn
+
+	// Wait a bit to let the panic occur and be recovered
+	time.Sleep(100 * time.Millisecond)
+
+	// The MetaListener should still be functional
+	// Add another listener to verify WaitGroup is not broken
+	normalListener := newMockListener("127.0.0.1:8081")
+	err = ml.AddListener("normal-test", normalListener)
+	if err != nil {
+		t.Fatalf("Failed to add normal listener after panic: %v", err)
+	}
+
+	// Verify we can still close cleanly
+	err = ml.Close()
+	if err != nil {
+		t.Errorf("Error closing MetaListener after panic: %v", err)
+	}
+}
+
+// panicMockListener is a mock listener that panics when Accept is called
+type panicMockListener struct {
+	*mockListener
+}
+
+func (p *panicMockListener) Accept() (net.Conn, error) {
+	// First call the normal Accept to get a connection
+	_, err := p.mockListener.Accept()
+	if err != nil {
+		return nil, err
+	}
+
+	// Then panic to test panic recovery
+	panic("test panic in handleListener")
+}
+
+// mockConn is a minimal implementation of net.Conn for testing
+type mockConn struct{}
+
+func (m *mockConn) Read(b []byte) (n int, err error)  { return 0, io.EOF }
+func (m *mockConn) Write(b []byte) (n int, err error) { return len(b), nil }
+func (m *mockConn) Close() error                      { return nil }
+func (m *mockConn) LocalAddr() net.Addr {
+	return &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8080}
+}
+
+func (m *mockConn) RemoteAddr() net.Addr {
+	return &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8081}
+}
+func (m *mockConn) SetDeadline(t time.Time) error      { return nil }
+func (m *mockConn) SetReadDeadline(t time.Time) error  { return nil }
+func (m *mockConn) SetWriteDeadline(t time.Time) error { return nil }
