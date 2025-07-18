@@ -11,6 +11,41 @@ import (
 	"time"
 )
 
+// copyWithContextCancel copies data from src to dst with context cancellation support.
+// Returns when context is cancelled, src is exhausted, or an error occurs.
+func copyWithContextCancel(ctx context.Context, dst io.Writer, src io.Reader) error {
+	buf := make([]byte, 32*1024)
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		// Set a short read timeout for responsiveness to context cancellation
+		if conn, ok := src.(net.Conn); ok {
+			conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+		}
+
+		n, err := src.Read(buf)
+		if n > 0 {
+			if _, writeErr := dst.Write(buf[:n]); writeErr != nil {
+				return writeErr
+			}
+		}
+
+		if err != nil {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				continue // Retry on timeout to check context
+			}
+			if err != io.EOF {
+				return err
+			}
+			return nil // EOF reached, copy complete
+		}
+	}
+}
+
 // AddHeaders adds headers to the connection.
 // It takes a net.Conn and a map of headers as input.
 // It only adds headers if the connection is an HTTP connection.
@@ -44,7 +79,11 @@ func AddHeaders(conn net.Conn, headers map[string]string) net.Conn {
 			pw.Close()
 		}()
 
-		// Set a deadline for the entire operation to prevent indefinite blocking
+		// Create context with timeout for the entire operation
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		// Set a deadline for the connection to prevent indefinite blocking
 		if deadline, ok := conn.(interface{ SetDeadline(time.Time) error }); ok {
 			deadline.SetDeadline(time.Now().Add(30 * time.Second))
 		}
@@ -55,24 +94,13 @@ func AddHeaders(conn net.Conn, headers map[string]string) net.Conn {
 			return
 		}
 
-		// Copy remaining data with timeout protection
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
-		done := make(chan error, 1)
-		go func() {
-			_, err := io.Copy(pw, conn)
-			done <- err
-		}()
-
-		select {
-		case err := <-done:
-			if err != nil {
-				log.Printf("Error copying connection data: %v", err)
-			}
-		case <-ctx.Done():
+		// Copy remaining data with context-aware copying to prevent goroutine leak
+		err := copyWithContextCancel(ctx, pw, conn)
+		if err != nil && err != context.Canceled && err != context.DeadlineExceeded {
+			log.Printf("Error copying connection data: %v", err)
+		}
+		if ctx.Err() != nil {
 			log.Printf("Header processing goroutine timed out after 30 seconds")
-			// Connection will be closed by defer pw.Close()
 		}
 	}()
 
