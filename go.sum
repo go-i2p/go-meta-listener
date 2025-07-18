@@ -3,6 +3,8 @@ github.com/cretz/bine v0.2.0/go.mod h1:WU4o9QR9wWp8AVKtTM1XD5vUHkEqnf2vVSo6dBqbe
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/go-i2p/go-limit v0.0.0-20250203203028-656fa82e1cb3 h1:czQe9f4Y+UFwqMKvMVsWDG/HWKdIN6uPelIkfoCjAsk=
+github.com/go-i2p/go-limit v0.0.0-20250203203028-656fa82e1cb3/go.mod h1:4jjmVRhvKj47sQ6B6wdDhN1IrEZunE6KwkYLQx/BeVE=
 github.com/go-i2p/go-limit v0.0.0-20250718203732-4734f182b014 h1:USgEZEPweXNRwXJjbsIvGz9q+ADSIdo+rMxzyuqbHbQ=
 github.com/go-i2p/go-limit v0.0.0-20250718203732-4734f182b014/go.mod h1:4jjmVRhvKj47sQ6B6wdDhN1IrEZunE6KwkYLQx/BeVE=
 github.com/go-i2p/i2pkeys v0.0.0-20241108200332-e4f5ccdff8c4/go.mod h1:m5TlHjPZrU5KbTd7Lr+I2rljyC6aJ88HdkeMQXV0U0E=
