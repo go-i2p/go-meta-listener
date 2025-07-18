@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"sync/atomic"
+	"time"
 )
 
 // Accept implements the net.Listener Accept method.
@@ -43,10 +44,7 @@ func (ml *MetaListener) Close() error {
 	ml.mu.Lock()
 	log.Printf("Closing MetaListener with %d listeners", len(ml.listeners))
 
-	// Signal all goroutines to stop
-	close(ml.closeCh)
-
-	// Close all listeners
+	// Close all listeners first to stop accepting new connections
 	var errs []error
 	for id, listener := range ml.listeners {
 		if err := listener.Close(); err != nil {
@@ -55,7 +53,30 @@ func (ml *MetaListener) Close() error {
 		}
 	}
 
+	// Clear the listeners map since they're all closed
+	ml.listeners = make(map[string]net.Listener)
+
 	ml.mu.Unlock()
+
+	// Allow a brief grace period for handlers to finish processing current connections
+	gracePeriod := 100 * time.Millisecond
+	done := make(chan struct{})
+
+	go func() {
+		ml.listenerWg.Wait()
+		close(done)
+	}()
+
+	// Wait for either all goroutines to finish or grace period to expire
+	select {
+	case <-done:
+		log.Printf("All listener goroutines exited gracefully")
+	case <-time.After(gracePeriod):
+		log.Printf("Grace period expired, signaling goroutines to stop")
+	}
+
+	// Now signal all goroutines to stop
+	close(ml.closeCh)
 
 	// Wait for all listener goroutines to exit
 	ml.listenerWg.Wait()

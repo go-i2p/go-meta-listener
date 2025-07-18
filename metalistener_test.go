@@ -183,3 +183,55 @@ func TestAcceptRaceCondition(t *testing.T) {
 
 	wg.Wait()
 }
+
+// TestShutdownRaceCondition tests that shutdown doesn't cause race conditions
+func TestShutdownRaceCondition(t *testing.T) {
+	ml := NewMetaListener()
+
+	// Add multiple listeners
+	for i := 0; i < 5; i++ {
+		listener := newMockListener(fmt.Sprintf("127.0.0.1:%d", 8080+i))
+		err := ml.AddListener(fmt.Sprintf("test%d", i), listener)
+		if err != nil {
+			t.Fatalf("Failed to add listener%d: %v", i, err)
+		}
+	}
+
+	var wg sync.WaitGroup
+
+	// Start multiple goroutines that will try to accept connections
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			conn, err := ml.Accept()
+			if err != nil {
+				// During shutdown, we expect ErrListenerClosed
+				if err.Error() != ErrListenerClosed.Error() {
+					t.Errorf("Goroutine %d: unexpected error: %v", id, err)
+				}
+				return
+			}
+			if conn != nil {
+				conn.Close()
+			}
+		}(i)
+	}
+
+	// Allow some time for goroutines to start
+	time.Sleep(10 * time.Millisecond)
+
+	// Close the listener
+	err := ml.Close()
+	if err != nil {
+		t.Errorf("Error closing MetaListener: %v", err)
+	}
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+
+	// Verify the listener is properly closed
+	if ml.Count() != 0 {
+		t.Errorf("Expected 0 listeners after close, got %d", ml.Count())
+	}
+}

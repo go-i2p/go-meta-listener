@@ -2,6 +2,7 @@ package meta
 
 import (
 	"net"
+	"sync/atomic"
 	"time"
 )
 
@@ -39,6 +40,12 @@ func (ml *MetaListener) handleListener(id string, listener net.Listener) {
 				log.Printf("Temporary error in %s listener: %v, retrying in 100ms", id, err)
 				time.Sleep(100 * time.Millisecond)
 				continue
+			}
+
+			// Check if the listener was closed (expected during shutdown)
+			if atomic.LoadInt64(&ml.isClosed) != 0 {
+				log.Printf("Listener %s closed during shutdown", id)
+				return
 			}
 
 			log.Printf("Permanent error in %s listener: %v, stopping", id, err)
