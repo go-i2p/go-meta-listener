@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/go-i2p/go-meta-listener"
 	"github.com/go-i2p/go-meta-listener/tcp"
@@ -15,6 +16,7 @@ import (
 
 type Mirror struct {
 	*meta.MetaListener
+	mu      sync.RWMutex // protects Onions and Garlics maps
 	Onions  map[string]*onramp.Onion
 	Garlics map[string]*onramp.Garlic
 }
@@ -28,6 +30,10 @@ func (m *Mirror) Close() error {
 	} else {
 		log.Println("MetaListener closed")
 	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	for _, onion := range m.Onions {
 		if err := onion.Close(); err != nil {
 			log.Println("Error closing Onion:", err)
@@ -89,7 +95,6 @@ func NewMirror(name string) (*Mirror, error) {
 
 func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 	log.Println("Starting Mirror Listener")
-	log.Printf("Actual args: name: '%s' addr: '%s' certDir: '%s' hiddenTls: '%t'\n", name, addr, certDir(), hiddenTls)
 	// get the port:
 	_, port, err := net.SplitHostPort(name)
 	if err != nil {
@@ -100,6 +105,7 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 		port = "3000"
 	}
 	hiddenTls := hiddenTls(port)
+	log.Printf("Actual args: name: '%s' addr: '%s' certDir: '%s' hiddenTls: '%t'\n", name, addr, certDir(), hiddenTls)
 	localAddr := net.JoinHostPort("127.0.0.1", port)
 	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
@@ -118,6 +124,10 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 	log.Println("Checking for existing onion and garlic listeners")
 	listenerId := fmt.Sprintf("metalistener-%s-%s", name, port)
 	log.Println("Listener ID:", listenerId)
+
+	// Protect map access with mutex to prevent data race
+	ml.mu.Lock()
+
 	// Check if onion and garlic listeners already exist
 	if ml.Onions[port] == nil && !DisableTor() {
 		// make a new onion listener
@@ -125,6 +135,7 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 		log.Println("Creating new onion listener")
 		onion, err := onramp.NewOnion(listenerId)
 		if err != nil {
+			ml.mu.Unlock()
 			return nil, err
 		}
 		log.Println("Onion listener created for port", port)
@@ -136,16 +147,23 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 		log.Println("Creating new garlic listener")
 		garlic, err := onramp.NewGarlic(listenerId, "127.0.0.1:7656", onramp.OPT_WIDE)
 		if err != nil {
+			ml.mu.Unlock()
 			return nil, err
 		}
 		log.Println("Garlic listener created for port", port)
 		ml.Garlics[port] = garlic
 	}
+
+	ml.mu.Unlock()
 	if hiddenTls {
 		// make sure an onion and a garlic listener exist at ml.Onions[port] and ml.Garlics[port]
 		// and listen on them, check existence first
 		if !DisableTor() {
-			onionListener, err := ml.Onions[port].ListenTLS()
+			ml.mu.RLock()
+			onionInstance := ml.Onions[port]
+			ml.mu.RUnlock()
+
+			onionListener, err := onionInstance.ListenTLS()
 			if err != nil {
 				return nil, err
 			}
@@ -156,7 +174,11 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 			log.Printf("OnionTLS listener added https://%s\n", onionListener.Addr())
 		}
 		if !DisableI2P() {
-			garlicListener, err := ml.Garlics[port].ListenTLS()
+			ml.mu.RLock()
+			garlicInstance := ml.Garlics[port]
+			ml.mu.RUnlock()
+
+			garlicListener, err := garlicInstance.ListenTLS()
 			if err != nil {
 				return nil, err
 			}
@@ -168,7 +190,11 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 		}
 	} else {
 		if !DisableTor() {
-			onionListener, err := ml.Onions[port].Listen()
+			ml.mu.RLock()
+			onionInstance := ml.Onions[port]
+			ml.mu.RUnlock()
+
+			onionListener, err := onionInstance.Listen()
 			if err != nil {
 				return nil, err
 			}
@@ -179,7 +205,11 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 			log.Printf("Onion listener added http://%s\n", onionListener.Addr())
 		}
 		if !DisableI2P() {
-			garlicListener, err := ml.Garlics[port].Listen()
+			ml.mu.RLock()
+			garlicInstance := ml.Garlics[port]
+			ml.mu.RUnlock()
+
+			garlicListener, err := garlicInstance.Listen()
 			if err != nil {
 				return nil, err
 			}
