@@ -29,3 +29,6 @@ mp
 metaproxy
 test*
 ex
+tlskeys
+onionkeys
+i2pkeys
