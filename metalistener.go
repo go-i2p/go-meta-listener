@@ -54,7 +54,8 @@ func NewMetaListener() *MetaListener {
 		removeListenerCh: make(chan string, 10), // Buffer for listener removal signals
 	}
 
-	// Start the listener management goroutine
+	// Start the listener management goroutine and track it
+	ml.listenerWg.Add(1)
 	go ml.manageListeners()
 
 	return ml
@@ -155,6 +156,11 @@ func (ml *MetaListener) WaitForShutdown(ctx context.Context) error {
 
 // manageListeners handles listener removal signals from handler goroutines
 func (ml *MetaListener) manageListeners() {
+	defer func() {
+		log.Printf("manageListeners goroutine exiting")
+		ml.listenerWg.Done()
+	}()
+
 	for {
 		select {
 		case <-ml.closeCh:
