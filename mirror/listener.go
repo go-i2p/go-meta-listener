@@ -89,6 +89,7 @@ func NewMirror(name string) (*Mirror, error) {
 
 func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 	log.Println("Starting Mirror Listener")
+	log.Printf("Actual args: name: '%s' addr: '%s' certDir: '%s' hiddenTls: '%t'\n", name, addr, certDir(), hiddenTls)
 	// get the port:
 	_, port, err := net.SplitHostPort(name)
 	if err != nil {
@@ -98,8 +99,7 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 		}
 		port = "3000"
 	}
-	hiddenTlsEnabled := hiddenTls(port)
-	log.Printf("Actual args: name: '%s' addr: '%s' certDir: '%s' hiddenTls: '%t'\n", name, addr, certDir(), hiddenTlsEnabled)
+	hiddenTls := hiddenTls(port)
 	localAddr := net.JoinHostPort("127.0.0.1", port)
 	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
@@ -141,7 +141,7 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 		log.Println("Garlic listener created for port", port)
 		ml.Garlics[port] = garlic
 	}
-	if hiddenTlsEnabled {
+	if hiddenTls {
 		// make sure an onion and a garlic listener exist at ml.Onions[port] and ml.Garlics[port]
 		// and listen on them, check existence first
 		if !DisableTor() {

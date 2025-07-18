@@ -27,5 +27,5 @@ go.work.sum
 /data-dir*
 mp
 metaproxy
-test
+test*
 ex
