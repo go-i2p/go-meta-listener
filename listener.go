@@ -3,18 +3,16 @@ package meta
 import (
 	"fmt"
 	"net"
+	"sync/atomic"
 )
 
 // Accept implements the net.Listener Accept method.
 // It returns the next connection from any of the managed listeners.
 func (ml *MetaListener) Accept() (net.Conn, error) {
 	// Check if already closed before entering the select loop
-	ml.mu.RLock()
-	if ml.isClosed {
-		ml.mu.RUnlock()
+	if atomic.LoadInt64(&ml.isClosed) != 0 {
 		return nil, ErrListenerClosed
 	}
-	ml.mu.RUnlock()
 
 	for {
 		select {
@@ -25,9 +23,8 @@ func (ml *MetaListener) Accept() (net.Conn, error) {
 			// Access RemoteAddr() directly on the connection
 			return result, nil
 		case <-ml.closeCh:
-			// Double-check the closed state under lock to ensure consistency
-			closed := ml.isClosed
-			if closed {
+			// Double-check the closed state using atomic operation
+			if atomic.LoadInt64(&ml.isClosed) != 0 {
 				return nil, ErrListenerClosed
 			}
 			continue
@@ -38,15 +35,13 @@ func (ml *MetaListener) Accept() (net.Conn, error) {
 // Close implements the net.Listener Close method.
 // It closes all managed listeners and releases resources.
 func (ml *MetaListener) Close() error {
-	ml.mu.Lock()
-
-	if ml.isClosed {
-		ml.mu.Unlock()
+	// Use atomic compare-and-swap to ensure we only close once
+	if !atomic.CompareAndSwapInt64(&ml.isClosed, 0, 1) {
 		return nil
 	}
 
+	ml.mu.Lock()
 	log.Printf("Closing MetaListener with %d listeners", len(ml.listeners))
-	ml.isClosed = true
 
 	// Signal all goroutines to stop
 	close(ml.closeCh)

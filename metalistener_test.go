@@ -148,3 +148,38 @@ func TestConcurrentListenerAccess(t *testing.T) {
 		t.Errorf("Expected 10 listeners, got %d", ml.Count())
 	}
 }
+
+// TestAcceptRaceCondition tests that Accept() method doesn't have race conditions
+func TestAcceptRaceCondition(t *testing.T) {
+	ml := NewMetaListener()
+
+	// Add a listener
+	listener := newMockListener("127.0.0.1:8080")
+	err := ml.AddListener("test", listener)
+	if err != nil {
+		t.Fatalf("Failed to add listener: %v", err)
+	}
+
+	var wg sync.WaitGroup
+
+	// Start multiple goroutines calling Accept()
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := ml.Accept()
+			// We expect either a valid connection or ErrListenerClosed
+			if err != nil && err.Error() != ErrListenerClosed.Error() {
+				t.Errorf("Unexpected error from Accept(): %v", err)
+			}
+		}()
+	}
+
+	// Concurrently close the listener
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		ml.Close()
+	}()
+
+	wg.Wait()
+}

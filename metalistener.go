@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
 
 	"github.com/samber/oops"
 )
@@ -30,8 +31,8 @@ type MetaListener struct {
 	closeCh chan struct{}
 	// removeListenerCh is used to signal listener removal from handlers
 	removeListenerCh chan string
-	// isClosed indicates whether the meta listener has been closed
-	isClosed bool
+	// isClosed indicates whether the meta listener has been closed (atomic)
+	isClosed int64
 	// mu protects concurrent access to the listener's state
 	mu sync.RWMutex
 }
@@ -68,7 +69,7 @@ func (ml *MetaListener) AddListener(id string, listener net.Listener) error {
 	ml.mu.Lock()
 	defer ml.mu.Unlock()
 
-	if ml.isClosed {
+	if atomic.LoadInt64(&ml.isClosed) != 0 {
 		return ErrListenerClosed
 	}
 
