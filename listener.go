@@ -58,6 +58,9 @@ func (ml *MetaListener) Close() error {
 
 	ml.mu.Unlock()
 
+	// Signal all goroutines to stop immediately
+	close(ml.closeCh)
+
 	// Allow a brief grace period for handlers to finish processing current connections
 	gracePeriod := 100 * time.Millisecond
 	done := make(chan struct{})
@@ -72,14 +75,10 @@ func (ml *MetaListener) Close() error {
 	case <-done:
 		log.Printf("All listener goroutines exited gracefully")
 	case <-time.After(gracePeriod):
-		log.Printf("Grace period expired, signaling goroutines to stop")
+		log.Printf("Grace period expired, waiting for remaining goroutines")
+		// Wait for all listener goroutines to exit
+		ml.listenerWg.Wait()
 	}
-
-	// Now signal all goroutines to stop
-	close(ml.closeCh)
-
-	// Wait for all listener goroutines to exit
-	ml.listenerWg.Wait()
 	log.Printf("All listener goroutines have exited")
 
 	// Return combined errors if any
