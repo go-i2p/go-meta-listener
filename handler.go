@@ -42,9 +42,12 @@ func (ml *MetaListener) handleListener(id string, listener net.Listener) {
 			}
 
 			log.Printf("Permanent error in %s listener: %v, stopping", id, err)
-			ml.mu.Lock()
-			delete(ml.listeners, id)
-			ml.mu.Unlock()
+			select {
+			case ml.removeListenerCh <- id:
+				// Successfully signaled for removal
+			case <-ml.closeCh:
+				// MetaListener is closing, no need to signal removal
+			}
 			return
 		}
 

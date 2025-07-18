@@ -28,6 +28,8 @@ type MetaListener struct {
 	connCh chan ConnResult
 	// closeCh signals all goroutines to stop
 	closeCh chan struct{}
+	// removeListenerCh is used to signal listener removal from handlers
+	removeListenerCh chan string
 	// isClosed indicates whether the meta listener has been closed
 	isClosed bool
 	// mu protects concurrent access to the listener's state
@@ -42,11 +44,17 @@ type ConnResult struct {
 
 // NewMetaListener creates a new MetaListener instance ready to manage multiple listeners.
 func NewMetaListener() *MetaListener {
-	return &MetaListener{
-		listeners: make(map[string]net.Listener),
-		connCh:    make(chan ConnResult, 100), // Larger buffer for high connection volume
-		closeCh:   make(chan struct{}),
+	ml := &MetaListener{
+		listeners:        make(map[string]net.Listener),
+		connCh:           make(chan ConnResult, 100), // Larger buffer for high connection volume
+		closeCh:          make(chan struct{}),
+		removeListenerCh: make(chan string, 10), // Buffer for listener removal signals
 	}
+
+	// Start the listener management goroutine
+	go ml.manageListeners()
+
+	return ml
 }
 
 // AddListener adds a new listener with the specified ID.
@@ -131,5 +139,23 @@ func (ml *MetaListener) WaitForShutdown(ctx context.Context) error {
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+}
+
+// manageListeners handles listener removal signals from handler goroutines
+func (ml *MetaListener) manageListeners() {
+	for {
+		select {
+		case <-ml.closeCh:
+			return
+		case id := <-ml.removeListenerCh:
+			ml.mu.Lock()
+			if listener, exists := ml.listeners[id]; exists {
+				listener.Close()
+				delete(ml.listeners, id)
+				log.Printf("Listener %s removed due to permanent error", id)
+			}
+			ml.mu.Unlock()
+		}
 	}
 }

@@ -1,0 +1,5 @@
+?   	github.com/go-i2p/go-meta-listener	[no test files]
+?   	github.com/go-i2p/go-meta-listener/example	[no test files]
+?   	github.com/go-i2p/go-meta-listener/mirror	[no test files]
+?   	github.com/go-i2p/go-meta-listener/mirror/metaproxy	[no test files]
+ok  	github.com/go-i2p/go-meta-listener/tcp	0.079s
