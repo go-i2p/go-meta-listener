@@ -98,8 +98,11 @@ func NewMirror(name string) (*Mirror, error) {
 	return ml, nil
 }
 
-func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
+func (ml *Mirror) Listen(name, addr string) (net.Listener, error) {
 	log.Println("Starting Mirror Listener")
+	// Create a new MetaListener for this specific Listen() call
+	newMetaListener := meta.NewMetaListener()
+
 	// get the port:
 	_, port, err := net.SplitHostPort(name)
 	if err != nil {
@@ -122,7 +125,7 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 		log.Fatal(err)
 	}
 	log.Printf("TCP listener created on %s\n", localAddr)
-	if err := ml.AddListener(port, hardenedListener); err != nil {
+	if err := newMetaListener.AddListener(port, hardenedListener); err != nil {
 		return nil, err
 	}
 	log.Printf("HTTP Local listener added http://%s\n", tcpListener.Addr())
@@ -176,7 +179,7 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 				return nil, err
 			}
 			oid := fmt.Sprintf("onion-%s", onionListener.Addr().String())
-			if err := ml.AddListener(oid, onionListener); err != nil {
+			if err := newMetaListener.AddListener(oid, onionListener); err != nil {
 				return nil, err
 			}
 			log.Printf("OnionTLS listener added https://%s\n", onionListener.Addr())
@@ -194,7 +197,7 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 				return nil, err
 			}
 			gid := fmt.Sprintf("garlic-%s", garlicListener.Addr().String())
-			if err := ml.AddListener(gid, garlicListener); err != nil {
+			if err := newMetaListener.AddListener(gid, garlicListener); err != nil {
 				return nil, err
 			}
 			log.Printf("GarlicTLS listener added https://%s\n", garlicListener.Addr())
@@ -213,7 +216,7 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 				return nil, err
 			}
 			oid := fmt.Sprintf("onion-%s", onionListener.Addr().String())
-			if err := ml.AddListener(oid, onionListener); err != nil {
+			if err := newMetaListener.AddListener(oid, onionListener); err != nil {
 				return nil, err
 			}
 			log.Printf("Onion listener added http://%s\n", onionListener.Addr())
@@ -231,7 +234,7 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 				return nil, err
 			}
 			gid := fmt.Sprintf("garlic-%s", garlicListener.Addr().String())
-			if err := ml.AddListener(gid, garlicListener); err != nil {
+			if err := newMetaListener.AddListener(gid, garlicListener); err != nil {
 				return nil, err
 			}
 			log.Printf("Garlic listener added http://%s\n", garlicListener.Addr())
@@ -249,12 +252,12 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 			return nil, err
 		}
 		tid := fmt.Sprintf("tls-%s", tlsListener.Addr().String())
-		if err := ml.AddListener(tid, tlsListener); err != nil {
+		if err := newMetaListener.AddListener(tid, tlsListener); err != nil {
 			return nil, err
 		}
 		log.Printf("TLS listener added https://%s\n", tlsListener.Addr())
 	}
-	return &ml, nil
+	return newMetaListener, nil
 }
 
 // Listen creates a new Mirror instance and sets up listeners for TLS, Onion, and Garlic.
