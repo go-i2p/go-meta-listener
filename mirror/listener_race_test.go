@@ -1,6 +1,7 @@
 package mirror
 
 import (
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -30,7 +31,8 @@ func TestConcurrentListenDataRace(t *testing.T) {
 			// Use different ports to avoid "address already in use" errors
 			// The race condition occurs on the map access, not the network binding
 			port := 4000 + id
-			addr := "test-" + string(rune('a'+id)) + ":" + string(rune('0'+port%10))
+			portstr := strconv.Itoa(port)
+			addr := "test-" + string(rune('a'+id)) + ":" + portstr
 
 			// This should cause concurrent map access on ml.Onions and ml.Garlics
 			listener, err := mirror.Listen(addr, "")
@@ -75,20 +77,20 @@ func TestSequentialListenWorks(t *testing.T) {
 	}
 	defer mirror.Close()
 
-	// Sequential calls should work fine
-	listener1, err := mirror.Listen("test-seq-1:3002", "")
+	// Sequential calls should work fine with different ports
+	listener1, err := mirror.Listen("test-seq-1:3003", "")
 	if err != nil {
 		t.Fatalf("First Listen() failed: %v", err)
 	}
-	if listener1 != nil {
-		listener1.Close()
+	if listener1 == nil {
+		t.Fatal("First Listen() returned nil listener")
 	}
 
-	listener2, err := mirror.Listen("test-seq-2:3002", "")
+	listener2, err := mirror.Listen("test-seq-2:3004", "")
 	if err != nil {
 		t.Fatalf("Second Listen() failed: %v", err)
 	}
-	if listener2 != nil {
-		listener2.Close()
+	if listener2 == nil {
+		t.Fatal("Second Listen() returned nil listener")
 	}
 }

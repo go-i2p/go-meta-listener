@@ -48,6 +48,11 @@ func (m *Mirror) Close() error {
 			log.Println("Garlic closed")
 		}
 	}
+
+	// Clear the maps to prevent reuse of closed instances
+	m.Onions = make(map[string]*onramp.Onion)
+	m.Garlics = make(map[string]*onramp.Garlic)
+
 	log.Println("Mirror closed")
 	return nil
 }
@@ -163,6 +168,9 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 			onionInstance := ml.Onions[port]
 			ml.mu.RUnlock()
 
+			if onionInstance == nil {
+				return nil, fmt.Errorf("no onion instance found for port %s", port)
+			}
 			onionListener, err := onionInstance.ListenTLS()
 			if err != nil {
 				return nil, err
@@ -178,6 +186,9 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 			garlicInstance := ml.Garlics[port]
 			ml.mu.RUnlock()
 
+			if garlicInstance == nil {
+				return nil, fmt.Errorf("no garlic instance found for port %s", port)
+			}
 			garlicListener, err := garlicInstance.ListenTLS()
 			if err != nil {
 				return nil, err
@@ -194,6 +205,9 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 			onionInstance := ml.Onions[port]
 			ml.mu.RUnlock()
 
+			if onionInstance == nil {
+				return nil, fmt.Errorf("no onion instance found for port %s", port)
+			}
 			onionListener, err := onionInstance.Listen()
 			if err != nil {
 				return nil, err
@@ -209,6 +223,9 @@ func (ml Mirror) Listen(name, addr string) (net.Listener, error) {
 			garlicInstance := ml.Garlics[port]
 			ml.mu.RUnlock()
 
+			if garlicInstance == nil {
+				return nil, fmt.Errorf("no garlic instance found for port %s", port)
+			}
 			garlicListener, err := garlicInstance.Listen()
 			if err != nil {
 				return nil, err

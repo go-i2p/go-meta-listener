@@ -2,6 +2,7 @@ package mirror
 
 import (
 	"os"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -34,9 +35,10 @@ func TestFixedConcurrentListenDataRace(t *testing.T) {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-
+			port := 5000 + id
+			portstr := strconv.Itoa(port)
 			// Use different addresses to avoid network conflicts
-			addr := "test-fixed-" + string(rune('a'+id)) + ":5000"
+			addr := "test-fixed-" + string(rune('a'+id)) + ":" + portstr
 
 			// This should now be safe thanks to mutex protection
 			listener, err := mirror.Listen(addr, "")
