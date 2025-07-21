@@ -98,12 +98,8 @@ func NewMirror(name string) (*Mirror, error) {
 	return ml, nil
 }
 
-func (ml *Mirror) Listen(name, addr string) (net.Listener, error) {
-	log.Println("Starting Mirror Listener")
-	// Create a new MetaListener for this specific Listen() call
-	newMetaListener := meta.NewMetaListener()
-
-	// get the port:
+// parsePortFromName extracts the port from a name string, defaulting to "3000" if parsing fails.
+func parsePortFromName(name string) string {
 	_, port, err := net.SplitHostPort(name)
 	if err != nil {
 		// check if host is an IP address
@@ -112,8 +108,11 @@ func (ml *Mirror) Listen(name, addr string) (net.Listener, error) {
 		}
 		port = "3000"
 	}
-	hiddenTls := hiddenTls(port)
-	log.Printf("Actual args: name: '%s' addr: '%s' certDir: '%s' hiddenTls: '%t'\n", name, addr, certDir(), hiddenTls)
+	return port
+}
+
+// setupLocalTCPListener creates and configures a local TCP listener with hardening.
+func setupLocalTCPListener(port string, metaListener *meta.MetaListener) (*net.TCPListener, error) {
 	localAddr := net.JoinHostPort("127.0.0.1", port)
 	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
@@ -125,138 +124,194 @@ func (ml *Mirror) Listen(name, addr string) (net.Listener, error) {
 		log.Fatal(err)
 	}
 	log.Printf("TCP listener created on %s\n", localAddr)
-	if err := newMetaListener.AddListener(port, hardenedListener); err != nil {
+	if err := metaListener.AddListener(port, hardenedListener); err != nil {
 		return nil, err
 	}
 	log.Printf("HTTP Local listener added http://%s\n", tcpListener.Addr())
-	log.Println("Checking for existing onion and garlic listeners")
-	listenerId := fmt.Sprintf("metalistener-%s-%s", name, port)
-	log.Println("Listener ID:", listenerId)
+	return tcpListener, nil
+}
 
-	// Protect map access with mutex to prevent data race
+// ensureHiddenServiceListeners creates onion and garlic listeners if they don't exist.
+func (ml *Mirror) ensureHiddenServiceListeners(port, listenerId string) error {
 	ml.mu.Lock()
+	defer ml.mu.Unlock()
 
 	// Check if onion and garlic listeners already exist
 	if ml.Onions[port] == nil && !DisableTor() {
-		// make a new onion listener
-		// and add it to the map
 		log.Println("Creating new onion listener")
 		onion, err := onramp.NewOnion(listenerId)
 		if err != nil {
-			ml.mu.Unlock()
-			return nil, err
+			return err
 		}
 		log.Println("Onion listener created for port", port)
 		ml.Onions[port] = onion
 	}
+
 	if ml.Garlics[port] == nil && !DisableI2P() {
-		// make a new garlic listener
-		// and add it to the map
 		log.Println("Creating new garlic listener")
 		garlic, err := onramp.NewGarlic(listenerId, "127.0.0.1:7656", onramp.OPT_WIDE)
 		if err != nil {
-			ml.mu.Unlock()
-			return nil, err
+			return err
 		}
 		log.Println("Garlic listener created for port", port)
 		ml.Garlics[port] = garlic
 	}
 
-	ml.mu.Unlock()
-	if hiddenTls {
-		// make sure an onion and a garlic listener exist at ml.Onions[port] and ml.Garlics[port]
-		// and listen on them, check existence first
-		if !DisableTor() {
-			ml.mu.RLock()
-			onionInstance := ml.Onions[port]
-			ml.mu.RUnlock()
+	return nil
+}
 
-			if onionInstance == nil {
-				return nil, fmt.Errorf("no onion instance found for port %s", port)
-			}
-			onionListener, err := onionInstance.ListenTLS()
-			if err != nil {
-				return nil, err
-			}
-			oid := fmt.Sprintf("onion-%s", onionListener.Addr().String())
-			if err := newMetaListener.AddListener(oid, onionListener); err != nil {
-				return nil, err
-			}
-			log.Printf("OnionTLS listener added https://%s\n", onionListener.Addr())
-		}
-		if !DisableI2P() {
-			ml.mu.RLock()
-			garlicInstance := ml.Garlics[port]
-			ml.mu.RUnlock()
+// addOnionListener adds an onion listener to the meta listener, either TLS or regular.
+func (ml *Mirror) addOnionListener(port string, metaListener *meta.MetaListener, useTLS bool) error {
+	if DisableTor() {
+		return nil
+	}
 
-			if garlicInstance == nil {
-				return nil, fmt.Errorf("no garlic instance found for port %s", port)
-			}
-			garlicListener, err := garlicInstance.ListenTLS()
-			if err != nil {
-				return nil, err
-			}
-			gid := fmt.Sprintf("garlic-%s", garlicListener.Addr().String())
-			if err := newMetaListener.AddListener(gid, garlicListener); err != nil {
-				return nil, err
-			}
-			log.Printf("GarlicTLS listener added https://%s\n", garlicListener.Addr())
-		}
+	ml.mu.RLock()
+	onionInstance := ml.Onions[port]
+	ml.mu.RUnlock()
+
+	if onionInstance == nil {
+		return fmt.Errorf("no onion instance found for port %s", port)
+	}
+
+	var onionListener net.Listener
+	var err error
+	var protocol string
+
+	if useTLS {
+		onionListener, err = onionInstance.ListenTLS()
+		protocol = "https"
 	} else {
-		if !DisableTor() {
-			ml.mu.RLock()
-			onionInstance := ml.Onions[port]
-			ml.mu.RUnlock()
-
-			if onionInstance == nil {
-				return nil, fmt.Errorf("no onion instance found for port %s", port)
-			}
-			onionListener, err := onionInstance.Listen()
-			if err != nil {
-				return nil, err
-			}
-			oid := fmt.Sprintf("onion-%s", onionListener.Addr().String())
-			if err := newMetaListener.AddListener(oid, onionListener); err != nil {
-				return nil, err
-			}
-			log.Printf("Onion listener added http://%s\n", onionListener.Addr())
-		}
-		if !DisableI2P() {
-			ml.mu.RLock()
-			garlicInstance := ml.Garlics[port]
-			ml.mu.RUnlock()
-
-			if garlicInstance == nil {
-				return nil, fmt.Errorf("no garlic instance found for port %s", port)
-			}
-			garlicListener, err := garlicInstance.Listen()
-			if err != nil {
-				return nil, err
-			}
-			gid := fmt.Sprintf("garlic-%s", garlicListener.Addr().String())
-			if err := newMetaListener.AddListener(gid, garlicListener); err != nil {
-				return nil, err
-			}
-			log.Printf("Garlic listener added http://%s\n", garlicListener.Addr())
-		}
+		onionListener, err = onionInstance.Listen()
+		protocol = "http"
 	}
-	if addr != "" {
-		cfg := wileedot.Config{
-			Domain:         name,
-			AllowedDomains: []string{name},
-			CertDir:        certDir(),
-			Email:          addr,
-		}
-		tlsListener, err := wileedot.New(cfg)
-		if err != nil {
-			return nil, err
-		}
-		tid := fmt.Sprintf("tls-%s", tlsListener.Addr().String())
-		if err := newMetaListener.AddListener(tid, tlsListener); err != nil {
-			return nil, err
-		}
-		log.Printf("TLS listener added https://%s\n", tlsListener.Addr())
+
+	if err != nil {
+		return err
 	}
+
+	oid := fmt.Sprintf("onion-%s", onionListener.Addr().String())
+	if err := metaListener.AddListener(oid, onionListener); err != nil {
+		return err
+	}
+
+	tlsPrefix := ""
+	if useTLS {
+		tlsPrefix = "TLS"
+	}
+	log.Printf("Onion%s listener added %s://%s\n", tlsPrefix, protocol, onionListener.Addr())
+	return nil
+}
+
+// addGarlicListener adds a garlic listener to the meta listener, either TLS or regular.
+func (ml *Mirror) addGarlicListener(port string, metaListener *meta.MetaListener, useTLS bool) error {
+	if DisableI2P() {
+		return nil
+	}
+
+	ml.mu.RLock()
+	garlicInstance := ml.Garlics[port]
+	ml.mu.RUnlock()
+
+	if garlicInstance == nil {
+		return fmt.Errorf("no garlic instance found for port %s", port)
+	}
+
+	var garlicListener net.Listener
+	var err error
+	var protocol string
+
+	if useTLS {
+		garlicListener, err = garlicInstance.ListenTLS()
+		protocol = "https"
+	} else {
+		garlicListener, err = garlicInstance.Listen()
+		protocol = "http"
+	}
+
+	if err != nil {
+		return err
+	}
+
+	gid := fmt.Sprintf("garlic-%s", garlicListener.Addr().String())
+	if err := metaListener.AddListener(gid, garlicListener); err != nil {
+		return err
+	}
+
+	tlsPrefix := ""
+	if useTLS {
+		tlsPrefix = "TLS"
+	}
+	log.Printf("Garlic%s listener added %s://%s\n", tlsPrefix, protocol, garlicListener.Addr())
+	return nil
+}
+
+// setupTLSListener creates and adds a TLS listener using wileedot if addr is provided.
+func setupTLSListener(name, addr string, metaListener *meta.MetaListener) error {
+	if addr == "" {
+		return nil
+	}
+
+	cfg := wileedot.Config{
+		Domain:         name,
+		AllowedDomains: []string{name},
+		CertDir:        certDir(),
+		Email:          addr,
+	}
+	tlsListener, err := wileedot.New(cfg)
+	if err != nil {
+		return err
+	}
+	tid := fmt.Sprintf("tls-%s", tlsListener.Addr().String())
+	if err := metaListener.AddListener(tid, tlsListener); err != nil {
+		return err
+	}
+	log.Printf("TLS listener added https://%s\n", tlsListener.Addr())
+	return nil
+}
+
+// Listen creates a comprehensive network listener that supports multiple protocols.
+// It sets up TCP, onion, garlic, and optionally TLS listeners.
+func (ml *Mirror) Listen(name, addr string) (net.Listener, error) {
+	log.Println("Starting Mirror Listener")
+
+	// Create a new MetaListener for this specific Listen() call
+	newMetaListener := meta.NewMetaListener()
+
+	// Parse port from name
+	port := parsePortFromName(name)
+	hiddenTls := hiddenTls(port)
+	log.Printf("Actual args: name: '%s' addr: '%s' certDir: '%s' hiddenTls: '%t'\n", name, addr, certDir(), hiddenTls)
+
+	// Setup local TCP listener
+	_, err := setupLocalTCPListener(port, newMetaListener)
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure hidden service listeners exist
+	listenerId := fmt.Sprintf("metalistener-%s-%s", name, port)
+	log.Println("Listener ID:", listenerId)
+	log.Println("Checking for existing onion and garlic listeners")
+
+	if err := ml.ensureHiddenServiceListeners(port, listenerId); err != nil {
+		return nil, err
+	}
+
+	// Add onion and garlic listeners
+	if err := ml.addOnionListener(port, newMetaListener, hiddenTls); err != nil {
+		return nil, err
+	}
+
+	if err := ml.addGarlicListener(port, newMetaListener, hiddenTls); err != nil {
+		return nil, err
+	}
+
+	// Setup TLS listener if email address is provided
+	if err := setupTLSListener(name, addr, newMetaListener); err != nil {
+		return nil, err
+	}
+
 	return newMetaListener, nil
 }
 
