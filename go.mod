@@ -11,7 +11,6 @@ require (
 
 require (
 	github.com/cretz/bine v0.2.0 // indirect
-	github.com/go-i2p/go-limit v0.0.0-20250718212214-52e5c6fec5d8 // indirect
 	github.com/go-i2p/i2pkeys v0.33.92 // indirect
 	github.com/go-i2p/sam3 v0.33.92 // indirect
 	github.com/oklog/ulid/v2 v2.1.1 // indirect
@@ -24,5 +23,4 @@ require (
 	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/text v0.27.0 // indirect
-	golang.org/x/time v0.12.0 // indirect
 )

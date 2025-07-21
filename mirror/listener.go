@@ -166,32 +166,52 @@ func (ml *Mirror) addOnionListener(port string, metaListener *meta.MetaListener,
 		return nil
 	}
 
-	ml.mu.RLock()
-	onionInstance := ml.Onions[port]
-	ml.mu.RUnlock()
-
-	if onionInstance == nil {
-		return fmt.Errorf("no onion instance found for port %s", port)
-	}
-
-	var onionListener net.Listener
-	var err error
-	var protocol string
-
-	if useTLS {
-		onionListener, err = onionInstance.ListenTLS()
-		protocol = "https"
-	} else {
-		onionListener, err = onionInstance.Listen()
-		protocol = "http"
-	}
-
+	onionInstance, err := ml.getOnionInstance(port)
 	if err != nil {
 		return err
 	}
 
-	oid := fmt.Sprintf("onion-%s", onionListener.Addr().String())
-	if err := metaListener.AddListener(oid, onionListener); err != nil {
+	listener, protocol, err := ml.createOnionListener(onionInstance, useTLS)
+	if err != nil {
+		return err
+	}
+
+	return ml.registerOnionListener(listener, metaListener, protocol, useTLS)
+}
+
+// getOnionInstance retrieves the onion instance for the specified port.
+func (ml *Mirror) getOnionInstance(port string) (*onramp.Onion, error) {
+	ml.mu.RLock()
+	defer ml.mu.RUnlock()
+
+	onionInstance := ml.Onions[port]
+	if onionInstance == nil {
+		return nil, fmt.Errorf("no onion instance found for port %s", port)
+	}
+	return onionInstance, nil
+}
+
+// createOnionListener creates either a TLS or regular onion listener.
+func (ml *Mirror) createOnionListener(onionInstance *onramp.Onion, useTLS bool) (net.Listener, string, error) {
+	var listener net.Listener
+	var err error
+	var protocol string
+
+	if useTLS {
+		listener, err = onionInstance.ListenTLS()
+		protocol = "https"
+	} else {
+		listener, err = onionInstance.Listen()
+		protocol = "http"
+	}
+
+	return listener, protocol, err
+}
+
+// registerOnionListener registers the onion listener with the meta listener and logs the result.
+func (ml *Mirror) registerOnionListener(listener net.Listener, metaListener *meta.MetaListener, protocol string, useTLS bool) error {
+	oid := fmt.Sprintf("onion-%s", listener.Addr().String())
+	if err := metaListener.AddListener(oid, listener); err != nil {
 		return err
 	}
 
@@ -199,7 +219,7 @@ func (ml *Mirror) addOnionListener(port string, metaListener *meta.MetaListener,
 	if useTLS {
 		tlsPrefix = "TLS"
 	}
-	log.Printf("Onion%s listener added %s://%s\n", tlsPrefix, protocol, onionListener.Addr())
+	log.Printf("Onion%s listener added %s://%s\n", tlsPrefix, protocol, listener.Addr())
 	return nil
 }
 
@@ -209,32 +229,52 @@ func (ml *Mirror) addGarlicListener(port string, metaListener *meta.MetaListener
 		return nil
 	}
 
-	ml.mu.RLock()
-	garlicInstance := ml.Garlics[port]
-	ml.mu.RUnlock()
-
-	if garlicInstance == nil {
-		return fmt.Errorf("no garlic instance found for port %s", port)
-	}
-
-	var garlicListener net.Listener
-	var err error
-	var protocol string
-
-	if useTLS {
-		garlicListener, err = garlicInstance.ListenTLS()
-		protocol = "https"
-	} else {
-		garlicListener, err = garlicInstance.Listen()
-		protocol = "http"
-	}
-
+	garlicInstance, err := ml.getGarlicInstance(port)
 	if err != nil {
 		return err
 	}
 
-	gid := fmt.Sprintf("garlic-%s", garlicListener.Addr().String())
-	if err := metaListener.AddListener(gid, garlicListener); err != nil {
+	listener, protocol, err := ml.createGarlicListener(garlicInstance, useTLS)
+	if err != nil {
+		return err
+	}
+
+	return ml.registerGarlicListener(listener, metaListener, protocol, useTLS)
+}
+
+// getGarlicInstance retrieves the garlic instance for the specified port.
+func (ml *Mirror) getGarlicInstance(port string) (*onramp.Garlic, error) {
+	ml.mu.RLock()
+	defer ml.mu.RUnlock()
+
+	garlicInstance := ml.Garlics[port]
+	if garlicInstance == nil {
+		return nil, fmt.Errorf("no garlic instance found for port %s", port)
+	}
+	return garlicInstance, nil
+}
+
+// createGarlicListener creates either a TLS or regular garlic listener.
+func (ml *Mirror) createGarlicListener(garlicInstance *onramp.Garlic, useTLS bool) (net.Listener, string, error) {
+	var listener net.Listener
+	var err error
+	var protocol string
+
+	if useTLS {
+		listener, err = garlicInstance.ListenTLS()
+		protocol = "https"
+	} else {
+		listener, err = garlicInstance.Listen()
+		protocol = "http"
+	}
+
+	return listener, protocol, err
+}
+
+// registerGarlicListener registers the garlic listener with the meta listener and logs the result.
+func (ml *Mirror) registerGarlicListener(listener net.Listener, metaListener *meta.MetaListener, protocol string, useTLS bool) error {
+	gid := fmt.Sprintf("garlic-%s", listener.Addr().String())
+	if err := metaListener.AddListener(gid, listener); err != nil {
 		return err
 	}
 
@@ -242,7 +282,7 @@ func (ml *Mirror) addGarlicListener(port string, metaListener *meta.MetaListener
 	if useTLS {
 		tlsPrefix = "TLS"
 	}
-	log.Printf("Garlic%s listener added %s://%s\n", tlsPrefix, protocol, garlicListener.Addr())
+	log.Printf("Garlic%s listener added %s://%s\n", tlsPrefix, protocol, listener.Addr())
 	return nil
 }
 
