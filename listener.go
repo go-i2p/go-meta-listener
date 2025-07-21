@@ -15,6 +15,11 @@ func (ml *MetaListener) Accept() (net.Conn, error) {
 		return nil, ErrListenerClosed
 	}
 
+	return ml.waitForConnection()
+}
+
+// waitForConnection waits for the next available connection from any managed listener.
+func (ml *MetaListener) waitForConnection() (net.Conn, error) {
 	for {
 		select {
 		case result, ok := <-ml.connCh:
@@ -47,7 +52,21 @@ func (ml *MetaListener) Close() error {
 	// Signal all goroutines to stop first, before clearing listeners map
 	close(ml.closeCh)
 
-	// Close all listeners first to stop accepting new connections
+	// Close all listeners and collect any errors
+	errs := ml.closeAllListeners()
+
+	// Clear the listeners map since they're all closed
+	ml.listeners = make(map[string]net.Listener)
+	ml.mu.Unlock()
+
+	// Wait for all listener goroutines to exit gracefully
+	ml.waitForListenerShutdown()
+
+	return ml.formatCloseErrors(errs)
+}
+
+// closeAllListeners closes all managed listeners and returns any errors encountered.
+func (ml *MetaListener) closeAllListeners() []error {
 	var errs []error
 	for id, listener := range ml.listeners {
 		if err := listener.Close(); err != nil {
@@ -55,13 +74,11 @@ func (ml *MetaListener) Close() error {
 			errs = append(errs, err)
 		}
 	}
+	return errs
+}
 
-	// Clear the listeners map since they're all closed
-	ml.listeners = make(map[string]net.Listener)
-
-	ml.mu.Unlock()
-
-	// Allow a brief grace period for handlers to finish processing current connections
+// waitForListenerShutdown waits for all listener goroutines to exit with a grace period.
+func (ml *MetaListener) waitForListenerShutdown() {
 	gracePeriod := 100 * time.Millisecond
 	done := make(chan struct{})
 
@@ -80,12 +97,13 @@ func (ml *MetaListener) Close() error {
 		ml.listenerWg.Wait()
 	}
 	log.Printf("All listener goroutines have exited")
+}
 
-	// Return combined errors if any
+// formatCloseErrors combines multiple close errors into a single error or returns nil.
+func (ml *MetaListener) formatCloseErrors(errs []error) error {
 	if len(errs) > 0 {
 		return fmt.Errorf("errors closing listeners: %v", errs)
 	}
-
 	return nil
 }
 
