@@ -204,7 +204,7 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
-	log.Printf("Proxy server starting, forwarding to %s:%d (max concurrent connections: %d)", *host, *port, *maxConns)
+	log.Printf("Proxy server starting on %d, forwarding to %s:%d (max concurrent connections: %d)", *listenPort, *host, *port, *maxConns)
 
 	// Start accepting connections in a separate goroutine
 	go func() {

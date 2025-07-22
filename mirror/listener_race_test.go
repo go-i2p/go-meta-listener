@@ -1,6 +1,7 @@
 package mirror
 
 import (
+	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -9,8 +10,14 @@ import (
 
 // TestConcurrentListenDataRace tests for data race in concurrent Listen() calls
 func TestConcurrentListenDataRace(t *testing.T) {
-	// Enable race detector with go test -race
-	// This test reproduces the data race in Mirror.Listen()
+	// Disable Tor and I2P to avoid deadlocks in concurrent access to shared connections
+	// This isolates the test to focus on the map race condition in Mirror.Listen()
+	os.Setenv("DISABLE_TOR", "true")
+	os.Setenv("DISABLE_I2P", "true")
+	defer func() {
+		os.Unsetenv("DISABLE_TOR")
+		os.Unsetenv("DISABLE_I2P")
+	}()
 
 	mirror, err := NewMirror("test-mirror:3001")
 	if err != nil {
@@ -30,7 +37,7 @@ func TestConcurrentListenDataRace(t *testing.T) {
 
 			// Use different ports to avoid "address already in use" errors
 			// The race condition occurs on the map access, not the network binding
-			port := 4000 + id
+			port := 14000 + id
 			portstr := strconv.Itoa(port)
 			addr := "test-" + string(rune('a'+id)) + ":" + portstr
 

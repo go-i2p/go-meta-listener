@@ -1,6 +1,7 @@
 package mirror
 
 import (
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -10,6 +11,14 @@ import (
 
 // TestConcurrentMapAccessDataRace tests for data race in concurrent map access
 func TestConcurrentMapAccessDataRace(t *testing.T) {
+	// Disable network services to prevent actual connections during testing
+	os.Setenv("DISABLE_TOR", "1")
+	os.Setenv("DISABLE_I2P", "1")
+	defer func() {
+		os.Unsetenv("DISABLE_TOR")
+		os.Unsetenv("DISABLE_I2P")
+	}()
+
 	// This test directly reproduces the data race on the maps
 	// Create a Mirror with empty maps like in Listen()
 	mirror := &Mirror{
