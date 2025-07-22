@@ -81,22 +81,41 @@ func (hl *hardenedListener) Accept() (net.Conn, error) {
 
 // hardenConnection applies security and performance settings to a TCP connection.
 func (hl *hardenedListener) hardenConnection(conn *net.TCPConn) error {
-	// Enable TCP keep-alive to detect dead connections
+	if err := hl.configureKeepAlive(conn); err != nil {
+		return err
+	}
+
+	if err := hl.configureLatencyOptimization(conn); err != nil {
+		return err
+	}
+
+	if err := hl.configureBufferSizes(conn); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// configureKeepAlive enables TCP keep-alive functionality to detect dead connections.
+func (hl *hardenedListener) configureKeepAlive(conn *net.TCPConn) error {
 	if err := conn.SetKeepAlive(true); err != nil {
 		return err
 	}
 
-	// Set keep-alive interval for timely detection of connection issues
 	if err := conn.SetKeepAlivePeriod(keepAliveInterval); err != nil {
 		return err
 	}
 
-	// Disable Nagle's algorithm for lower latency
-	if err := conn.SetNoDelay(true); err != nil {
-		return err
-	}
+	return nil
+}
 
-	// Set socket buffer sizes for optimal throughput
+// configureLatencyOptimization disables Nagle's algorithm for reduced latency.
+func (hl *hardenedListener) configureLatencyOptimization(conn *net.TCPConn) error {
+	return conn.SetNoDelay(true)
+}
+
+// configureBufferSizes sets socket buffer sizes for optimal throughput.
+func (hl *hardenedListener) configureBufferSizes(conn *net.TCPConn) error {
 	if err := conn.SetReadBuffer(socketBufferSize); err != nil {
 		return err
 	}
