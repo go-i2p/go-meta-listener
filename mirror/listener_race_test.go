@@ -78,6 +78,14 @@ func TestConcurrentListenDataRace(t *testing.T) {
 
 // TestSequentialListenWorks verifies that sequential Listen calls work correctly
 func TestSequentialListenWorks(t *testing.T) {
+	// Disable Tor and I2P to avoid timeout issues in testing environment
+	os.Setenv("DISABLE_TOR", "true")
+	os.Setenv("DISABLE_I2P", "true")
+	defer func() {
+		os.Unsetenv("DISABLE_TOR")
+		os.Unsetenv("DISABLE_I2P")
+	}()
+
 	mirror, err := NewMirror("test-sequential:3002")
 	if err != nil {
 		t.Fatalf("Failed to create mirror: %v", err)
