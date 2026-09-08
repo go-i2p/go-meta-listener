@@ -3,7 +3,7 @@ module github.com/go-i2p/go-meta-listener
 go 1.26.3
 
 require (
-	github.com/go-i2p/logger v0.1.59999
+	github.com/go-i2p/logger v0.1.60000-0.20260701134448-2648c3b0e040
 	github.com/go-i2p/onramp v0.33.92
 	github.com/opd-ai/wileedot v0.0.0-20241217172720-521d4175e624
 	github.com/samber/oops v1.23.1
